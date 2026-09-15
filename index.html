@@ -9,13 +9,13 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 
   <!-- EmailJS SDK -->
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-  <script type="text/javascript">
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script type="text/javascript">
     (function(){
-      // ⚠️ 필요시 EmailJS Public Key 입력
-      emailjs.init("YOUR_PUBLIC_KEY");
+        // 전달주신 Public Key 적용 완료
+        emailjs.init("r_c27LL0HBgpzMKoy");
     })();
-  </script>
+</script>
 
   <!-- Firebase SDK (v9/v10 호환 모듈) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -292,7 +292,7 @@
   </style>
 
   <!-- 카카오맵 API -->
-  <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5b2873fe0317b06e6507efe9231f3691&libraries=services"></script>
+  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=5b2873fe7405202ed726f1c42f36f338&libraries=services"></script>
 </head>
 <body>
 <div class="app-container">
@@ -928,10 +928,10 @@ window.onload = function() {
 
     htmlMsg += `</tbody></table>`;
 
-    emailjs.send("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", {
+    emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams), {
       to_email: targetEmail,
       message_html: htmlMsg
-    })
+    }
     .then(function() {
       alert(targetEmail + ' (으)로 데이터 리포트 표가 전송되었습니다!');
     }, function(err) {
