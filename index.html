@@ -796,21 +796,34 @@ window.onload = function() {
   };
 
   function renderHistory() {
-    var box = document.getElementById('historyCards');
-    var summaryBox = document.getElementById('historySummary');
-    box.innerHTML = '';
+  var box = document.getElementById('historyBox') || document.getElementById('historyList');
+  if (!box) return;
+  box.innerHTML = '';
 
-    var roadCount = globalLogs.filter(function(l){ return l.type === 'road'; }).length;
-    var parkingCount = globalLogs.filter(function(l){ return l.type === 'parking'; }).length;
+  if (!globalLogs || globalLogs.length === 0) {
+    box.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:13px;">저장된 취득 내역이 없습니다.</div>';
+    return;
+  }
 
-    summaryBox.innerHTML = '📊 총 ' + globalLogs.length + '건 (주행 취득건 ' + roadCount + '건, 주차 취득건 ' + parkingCount + '건)';
-
-    if (globalLogs.length === 0) {
-      box.innerHTML = '<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:20px 0;">기록된 측정 내역이 없습니다.</p>';
-      return;
+  // 1. 날짜별 그룹화
+  var groups = {};
+  globalLogs.slice().reverse().forEach(function(item) {
+    var dateKey = item.acqDate || item.date || new Date().toISOString().substring(0, 10);
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
     }
+    groups[dateKey].push(item);
+  });
 
-    globalLogs.slice().reverse().forEach(function(item) {
+  // 2. 날짜별 렌더링
+  Object.keys(groups).sort().reverse().forEach(function(dateKey) {
+    var groupHeader = document.createElement('div');
+    groupHeader.className = 'history-date-header';
+    groupHeader.style.cssText = 'font-weight: bold; font-size: 13px; color: var(--text-accent); background: var(--bg-accent); padding: 6px 10px; border-radius: 6px; margin: 10px 0 6px 0; display: flex; align-items: center; justify-content: space-between;';
+    groupHeader.innerHTML = `<span>📅 ${dateKey}</span> <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">${groups[dateKey].length}건</span>`;
+    box.appendChild(groupHeader);
+
+    groups[dateKey].forEach(function(item) {
       var div = document.createElement('div');
       div.className = 'history-card';
       
@@ -818,7 +831,7 @@ window.onload = function() {
       var badgeClass = isRoad ? 'badge-type badge-road' : 'badge-type badge-parking';
       var typeText = isRoad ? '주행 취득건' : '주차 취득건';
 
-      if (editingId === item.id) {
+      if (typeof editingId !== 'undefined' && editingId === item.id) {
         div.innerHTML = `
           <div style="font-size:12px; font-weight:bold; color:#0d6efd; margin-bottom:4px;">✏️ 취득 내역 수정</div>
           <div class="grid-2">
@@ -877,10 +890,10 @@ window.onload = function() {
           </div>
         `;
       }
-
       box.appendChild(div);
     });
-  }
+  });
+}
 
   function executeSendEmail() {
     var targetEmail = document.getElementById('targetEmailInput').value.trim();
@@ -982,6 +995,31 @@ window.onload = function() {
     }
   });
 };
+// 📍 여기에 아래 코드를 붙여넣으세요!
+    function closeSheet() {
+      var sheet = document.getElementById('sheet');
+      if (sheet && sheet.style.display !== 'none') {
+        sheet.style.display = 'none';
+        if (typeof map !== 'undefined' && map) {
+          setTimeout(function() {
+            var center = map.getCenter();
+            map.relayout();
+            map.setCenter(center);
+          }, 50);
+        }
+      }
+    }
+
+    // 빈 공간 및 지도 클릭 시 메뉴 닫기
+    document.addEventListener('click', function(e) {
+      var sheet = document.getElementById('sheet');
+      var fabBtn = document.getElementById('fabBtn');
+      if (sheet && sheet.style.display === 'flex') {
+        if (!sheet.contains(e.target) && !fabBtn.contains(e.target)) {
+          closeSheet();
+        }
+      }
+    });
 </script>
 </body>
 </html>
