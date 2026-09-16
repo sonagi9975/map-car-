@@ -928,17 +928,21 @@ window.onload = function() {
 
     htmlMsg += `</tbody></table>`;
 
-    emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams), {
+    // EmailJS에 전달할 파라미터 구조 정립
+    var templateParams = {
       to_email: targetEmail,
+      report_rows: htmlMsg,
       message_html: htmlMsg
-    }
-    .then(function() {
-      alert(targetEmail + ' (으)로 데이터 리포트 표가 전송되었습니다!');
-    }, function(err) {
-      alert('전송 실패: EmailJS 설정을 확인해주세요.\n' + JSON.stringify(err));
-    });
-  }
+    };
 
+    // 괄호 오류 수정된 정상 API 호출 방식
+    emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams)
+      .then(function() {
+        alert(targetEmail + ' (으)로 데이터 리포트 표가 전송되었습니다!');
+      }, function(err) {
+        alert('전송 실패: EmailJS 설정을 확인해주세요.\n' + JSON.stringify(err));
+      });
+  }
   document.getElementById('btnDoSendEmail').addEventListener('click', executeSendEmail);
 
   // 내 위치 이동 버튼 이벤트
