@@ -293,7 +293,6 @@
 
   <!-- 카카오맵 API -->
 <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5b2873fe0317b06e6507efe9231f3691&libraries=services"></script>
-</head>
 <body>
 <div class="app-container">
   <div class="app-header">
@@ -943,6 +942,7 @@ window.onload = function() {
         alert('전송 실패: EmailJS 설정을 확인해주세요.\n' + JSON.stringify(err));
       });
   }
+
   document.getElementById('btnDoSendEmail').addEventListener('click', executeSendEmail);
 
   // 내 위치 이동 버튼 이벤트
