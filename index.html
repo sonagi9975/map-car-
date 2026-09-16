@@ -148,16 +148,23 @@
       cursor: pointer;
     }
 
-    #sheet {
-      display: none;
-      flex-direction: column;
-      border-top: 0.5px solid var(--border);
-      background: var(--surface-1);
-      max-height: 70vh;
-      overflow-y: auto;
-      z-index: 1000;
-      padding: 12px;
-    }
+    /* 기존 #sheet 항목을 찾아 아래 내용으로 변경 */
+#sheet {
+  display: none;
+  flex-direction: column;
+  position: fixed; /* 화면 하단에 고정 */
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-height: 70vh; /* 화면의 70%를 넘지 않도록 제한 */
+  overflow-y: auto; /* 내용이 길어지면 스크롤 생성 */
+  -webkit-overflow-scrolling: touch; /* 모바일 터치 스크롤 부드럽게 */
+  border-top: 0.5px solid var(--border);
+  background: var(--surface-1);
+  z-index: 1000;
+  padding: 12px;
+  box-sizing: border-box;
+}
 
     .vertical-menu {
       display: flex;
