@@ -514,22 +514,28 @@ window.onload = function() {
   var currentLng = 126.9780;
   var currentAddressStr = '위치 검색 중...';
 
-  var globalLogs = [];
-  var editingId = null;
+  // 브라우저 저장소(localStorage)에서 기존 기록을 가져오고, 없으면 빈 배열로 시작
+var globalLogs = [];
+var editingId = null;
 
-  // Firebase 실시간 동기화
-  database.ref('logs').on('value', function(snapshot) {
-    var data = snapshot.val();
-    globalLogs = [];
-    if (data) {
-      Object.keys(data).forEach(function(key) {
-        globalLogs.push(Object.assign({ id: key }, data[key]));
-      });
-    }
-    if (document.getElementById('viewHistory').style.display === 'flex') {
-      renderHistory();
-    }
-  });
+// Firebase 실시간 동기화 (로컬 백업 저장소 동시 연동)
+database.ref('logs').on('value', function(snapshot) {
+  var data = snapshot.val();
+  globalLogs = [];
+  if (data) {
+    Object.keys(data).forEach(function(key) {
+      globalLogs.push(Object.assign({ id: key }, data[key]));
+    });
+    // Firebase 수신 데이터를 로컬 저장소에도 백업
+    localStorage.setItem('myMapLogs', JSON.stringify(globalLogs));
+  } else {
+    // 만약 Firebase 데이터가 비어있거나 불러오기 전이라면 로컬 백업 데이터 로드
+    globalLogs = JSON.parse(localStorage.getItem('myMapLogs') || '[]');
+  }
+  
+  // 데이터 동기화 즉시 화면 및 날짜별 그룹 갱신
+  renderHistory();
+});
 
   var currentRecordingState = {
     active: false,
