@@ -312,14 +312,26 @@
     <span id="currentLocText"><i class="ti ti-map-pin" style="margin-right: 4px;"></i>현재 위치 수신 중...</span>
   </div>
 
-  <div class="map-wrapper">
-    <div id="map"></div>
-
-    <div id="mapOverlayTimer" class="map-overlay-timer">
-      <span>🔴 REC</span>
-      <span id="overlayTimerVal">[00:00:00]</span>
-      <span id="pathPointCount" style="font-size: 11px; color: #aaa; margin-left: 4px;">(0pts)</span>
-    </div>
+  <div class="map-wrapper" style="position: relative;">
+  <div id="map"></div>
+  
+  <!-- 늘어남 방지 및 좌측 상단(빨간 박스) 콕 찝어 고정 -->
+  <div id="mapOverlayTimer" class="map-overlay-timer" style="
+    display: none; 
+    position: absolute !important; 
+    top: 16px !important; 
+    bottom: auto !important; 
+    left: 16px !important; 
+    right: auto !important;
+    height: auto !important; 
+    z-index: 999999 !important; 
+    pointer-events: none;
+  ">
+    <span style="color: #ff4d4d; font-weight: bold;">🔴 REC</span>
+    <span id="overlayTimerVal">[00:00:00]</span>
+    <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
+  </div>
+</div>
 
     <div class="fab-container">
       <button id="btnMyLocation" class="fab-btn" aria-label="현재 위치로 이동">
@@ -473,13 +485,26 @@
         <span style="font-weight: bold; font-size: 15px;">이메일 전송</span>
       </div>
 
+      <!-- 이메일 직접 입력 및 저장 -->
       <div class="form-group">
         <label>수신 이메일 주소</label>
         <div style="display: flex; gap: 6px;">
           <input type="email" id="targetEmailInput" class="form-control" placeholder="example@email.com" style="flex: 1;">
-          <button id="btnSaveEmail" class="btn-action" style="background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-primary); padding: 0 12px;">저장</button>
+          <button type="button" id="btnSaveEmail" class="btn-action" style="background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-primary); padding: 0 12px;">저장</button>
         </div>
         <span id="emailSaveMsg" style="font-size: 11px; color: var(--text-success); display: none;">✓ 이메일 주소가 저장되었습니다.</span>
+      </div>
+
+      <!-- 📍 [추가된 부분] 저장된 이메일 목록 선택 / 수정 / 삭제 -->
+      <div class="form-group">
+        <label>저장된 이메일 목록</label>
+        <div style="display: flex; gap: 6px;">
+          <select id="savedEmailSelect" class="form-control" style="flex: 1;">
+            <option value="">-- 저장된 이메일 목록 --</option>
+          </select>
+          <button type="button" id="btnEditEmail" class="btn-action" style="background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-primary); padding: 0 10px;">수정</button>
+          <button type="button" id="btnDeleteEmail" class="btn-action" style="background: #dc3545; color: #fff; border: none; padding: 0 10px;">삭제</button>
+        </div>
       </div>
 
       <button id="btnDoSendEmail" class="btn-action" style="background: #0d6efd; color: #fff; margin-top: 8px;">
@@ -515,10 +540,6 @@ window.onload = function() {
   var currentAddressStr = '위치 검색 중...';
 
   // 브라우저 저장소(localStorage)에서 기존 기록을 가져오고, 없으면 빈 배열로 시작
-var globalLogs = [];
-var editingId = null;
-
-// Firebase 실시간 동기화 (로컬 백업 저장소 동시 연동)
 var globalLogs = [];
 var editingId = null;
 
@@ -804,43 +825,46 @@ database.ref('logs').on('value', function(snapshot) {
   };
 
   function renderHistory() {
-  var box = document.getElementById('historyBox') || document.getElementById('historyList') || document.getElementById('viewHistory');
-  if (!box) return;
+    cleanupOldLogs();
+  var listArea = document.getElementById('historyCards');
+  if (!listArea) return;
 
-  // 헤더가 있으면 유지하고 목록 영역 초기화
-  var listArea = box.querySelector('.log-items-container');
-  if (!listArea) {
-    var existingHeader = box.querySelector('.sub-view-header');
-    box.innerHTML = '';
-    if (existingHeader) box.appendChild(existingHeader);
-    
-    listArea = document.createElement('div');
-    listArea.className = 'log-items-container';
-    box.appendChild(listArea);
-  } else {
-    listArea.innerHTML = '';
-  }
+  // 💡 [원인 해결 1] 웹페이지 전체 스크롤과 목록 상자 내부 스크롤 위치를 모두 저장
+  var pageScrollY = window.scrollY || document.documentElement.scrollTop;
+  var containerScrollTop = listArea.scrollTop;
+
+  listArea.innerHTML = '';
 
   if (!globalLogs || globalLogs.length === 0) {
     listArea.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:13px;">저장된 취득 내역이 없습니다.</div>';
     return;
   }
 
-  // 1. 날짜별 그룹화 (최신순)
+  // 1. 날짜별 그룹화 (timestamp에서 YYYY-MM-DD 추출)
   var groups = {};
   globalLogs.slice().reverse().forEach(function(item) {
-    var dateKey = item.acqDate || item.date || (item.startTime ? item.startTime.substring(0, 10) : new Date().toISOString().substring(0, 10));
+    var dateKey = item.acqDate || item.date;
+    
+    if (!dateKey) {
+      if (item.timestamp) {
+        var d = new Date(item.timestamp);
+        dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
+      } else {
+        dateKey = new Date().toISOString().substring(0, 10);
+      }
+    }
+
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
     groups[dateKey].push(item);
   });
 
-  // 2. 날짜별 렌더링
+  // 2. 날짜별 그룹 렌더링 (최신 날짜순)
   Object.keys(groups).sort().reverse().forEach(function(dateKey) {
     var groupHeader = document.createElement('div');
     groupHeader.className = 'history-date-header';
-    groupHeader.style.cssText = 'font-weight: bold; font-size: 13px; color: var(--text-accent); background: var(--bg-accent); padding: 6px 10px; border-radius: 6px; margin: 10px 0 6px 0; display: flex; align-items: center; justify-content: space-between;';
+    groupHeader.style.cssText = 'font-weight: bold; font-size: 13px; color: var(--text-accent); background: var(--bg-accent, #eef2f7); padding: 6px 10px; border-radius: 6px; margin: 12px 0 6px 0; display: flex; align-items: center; justify-content: space-between;';
     groupHeader.innerHTML = `<span>📅 ${dateKey}</span> <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">${groups[dateKey].length}건</span>`;
     listArea.appendChild(groupHeader);
 
@@ -866,8 +890,8 @@ database.ref('logs').on('value', function(snapshot) {
             </div>
           </div>
           <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:6px;">
-            <button class="btn-edit-save" onclick="saveEditLogItem('${item.id}')">저장</button>
-            <button class="btn-edit-cancel" onclick="cancelEditLogItem()">취소</button>
+            <button type="button" class="btn-edit-save" onclick="event.preventDefault(); event.stopPropagation(); saveEditLogItem('${item.id}')">저장</button>
+            <button type="button" class="btn-edit-cancel" onclick="event.preventDefault(); event.stopPropagation(); cancelEditLogItem()">취소</button>
           </div>
         `;
       } else {
@@ -875,8 +899,9 @@ database.ref('logs').on('value', function(snapshot) {
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span class="${badgeClass}">${typeText}</span>
             <div>
-              <button class="icon-btn" style="color:#0d6efd;" onclick="startEditLogItem('${item.id}')" title="수정"><i class="ti ti-edit"></i></button>
-              <button class="icon-btn" style="color:#dc3545;" onclick="deleteLogItem('${item.id}')" title="삭제"><i class="ti ti-trash"></i></button>
+              <!-- 💡 [원인 해결 2] event.preventDefault() 및 event.stopPropagation()으로 기본 클릭 동작과 이벤트 튀김 차단 -->
+              <button type="button" class="icon-btn" style="color:#0d6efd;" onclick="event.preventDefault(); event.stopPropagation(); startEditLogItem('${item.id}')" title="수정"><i class="ti ti-edit"></i></button>
+              <button type="button" class="icon-btn" style="color:#dc3545;" onclick="event.preventDefault(); event.stopPropagation(); deleteLogItem('${item.id}')" title="삭제"><i class="ti ti-trash"></i></button>
             </div>
           </div>
           <div style="font-weight:bold; margin-top:2px;">📍 ${item.location || '위치 정보 없음'}</div>
@@ -894,81 +919,220 @@ database.ref('logs').on('value', function(snapshot) {
       listArea.appendChild(div);
     });
   });
+
+  // 💡 [원인 해결 3] 화면을 전부 다 재렌더링한 후 저장해둔 두 스크롤 위치를 동시에 복원
+  listArea.scrollTop = containerScrollTop;
+  window.scrollTo(0, pageScrollY);
 }
 
-  function executeSendEmail() {
-    var targetEmail = document.getElementById('targetEmailInput').value.trim();
-    if (!targetEmail) { alert('수신할 이메일 주소를 입력해 주세요.'); return; }
-    if (globalLogs.length === 0) { alert('전송할 측정 데이터가 없습니다.'); return; }
+function cleanupOldLogs() {
+  if (!globalLogs || globalLogs.length === 0) return;
 
-    var ssd = document.getElementById('inputSSD').value || '14';
-    var acqDate = (document.getElementById('inputAcqDate').value || new Date().toISOString().substring(0, 10)).replace(/-/g, '');
+  function getItemDate(item) {
+    var dateKey = item.acqDate || item.date;
+    if (!dateKey) {
+      if (item.timestamp) {
+        var d = new Date(item.timestamp);
+        var m = (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1);
+        var day = (d.getDate() < 10 ? '0' : '') + d.getDate();
+        dateKey = d.getFullYear() + '-' + m + '-' + day;
+      } else {
+        dateKey = new Date().toISOString().substring(0, 10);
+      }
+    }
+    return dateKey;
+  }
 
-    var htmlMsg = `
-      <h3 style="font-family: sans-serif; color: #333;">📋 데이터 수집 리포트</h3>
-      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-family: sans-serif; font-size: 12px; text-align: center; width: 100%;">
-        <thead>
-          <tr style="background-color: #1f2d3d; color: #ffffff; font-weight: bold;">
-            <th>시나리오</th>
-            <th>취득일</th>
-            <th>SSD</th>
-            <th>위치</th>
-            <th>환경</th>
-            <th>취득 시작시간</th>
-            <th>취득 종료시간</th>
-            <th>취득 시간</th>
-            <th>목표 대상</th>
-            <th>비고</th>
-            <th>SPECIAL</th>
-            <th>아이</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
+  var uniqueDates = Array.from(new Set(globalLogs.map(getItemDate))).sort();
 
-    globalLogs.forEach(function(item) {
-      var specTd = item.special === 'o' ? '<td style="background-color:#e8f4fe; color:#0d6efd; font-weight:bold;">o</td>' : '<td style="background-color:#fde8e8; color:#dc3545; font-weight:bold;">x</td>';
-      var childTd = item.child === 'o' ? '<td style="background-color:#e8f4fe; color:#0d6efd; font-weight:bold;">o</td>' : '<td style="background-color:#fde8e8; color:#dc3545; font-weight:bold;">x</td>';
+  var MAX_DAYS = 20;
+  if (uniqueDates.length > MAX_DAYS) {
+    var keepDates = new Set(uniqueDates.slice(-MAX_DAYS));
 
-      htmlMsg += `
-        <tr>
-          <td style="font-weight: bold;">${item.scenario}</td>
-          <td>${acqDate}</td>
-          <td>${ssd}</td>
-          <td style="text-align: left;">${item.location}</td>
-          <td>${item.env}</td>
-          <td>${item.startTime}</td>
-          <td>${item.endTime}</td>
-          <td>${item.duration}</td>
-          <td style="text-align: left;">${item.target}</td>
-          <td style="text-align: left;">${item.note || ''}</td>
-          ${specTd}
-          ${childTd}
-        </tr>
-      `;
+    globalLogs = globalLogs.filter(function(item) {
+      return keepDates.has(getItemDate(item));
     });
 
-    htmlMsg += `</tbody></table>`;
+    if (typeof saveLogsToStorage === 'function') {
+      saveLogsToStorage();
+    }
+  }
+}
 
-    // EmailJS에 전달할 파라미터 구조 정립
+function executeSendEmail() {
+  var rawEmailInput = document.getElementById('targetEmailInput').value.trim();
+  if (!rawEmailInput) { alert('수신할 이메일 주소를 입력해 주세요.'); return; }
+
+  // 쉼표(,), 세미콜론(;), 공백으로 구분해서 다수 이메일 배열 만들기
+  var emailList = rawEmailInput.split(/[,;\s]+/).filter(function(e) { return e.length > 0; });
+  if (emailList.length === 0) { alert('올바른 이메일 주소를 입력해 주세요.'); return; }
+  
+  // 💡 [추가] 데이터 존재 여부 확인 코드
+  if (globalLogs.length === 0) { alert('전송할 측정 데이터가 없습니다.'); return; }
+
+  var ssd = document.getElementById('inputSSD').value || '14';
+  var acqDate = (document.getElementById('inputAcqDate').value || new Date().toISOString().substring(0, 10)).replace(/-/g, '');
+
+  var htmlMsg = `
+    <h3 style="font-family: sans-serif; color: #333;">📋 데이터 수집 리포트</h3>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-family: sans-serif; font-size: 12px; text-align: center; width: 100%;">
+      <thead>
+        <tr style="background-color: #1f2d3d; color: #ffffff; font-weight: bold;">
+          <th>시나리오</th>
+          <th>취득일</th>
+          <th>SSD</th>
+          <th>위치</th>
+          <th>환경</th>
+          <th>취득 시작시간</th>
+          <th>취득 종료시간</th>
+          <th>취득 시간</th>
+          <th>목표 대상</th>
+          <th>비고</th>
+          <th>SPECIAL</th>
+          <th>아이</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  globalLogs.forEach(function(item) {
+    var specTd = item.special === 'o' ? '<td style="background-color:#e8f4fe; color:#0d6efd; font-weight:bold;">o</td>' : '<td style="background-color:#fde8e8; color:#dc3545; font-weight:bold;">x</td>';
+    var childTd = item.child === 'o' ? '<td style="background-color:#e8f4fe; color:#0d6efd; font-weight:bold;">o</td>' : '<td style="background-color:#fde8e8; color:#dc3545; font-weight:bold;">x</td>';
+
+    // 💡 [수정 포인트] 도로 경로(roadPath)가 있으면 기존 위치 아래에 추가해줍니다.
+    var locDisplay = item.location || '';
+    if (item.roadPath) {
+      locDisplay += `<br><span style="font-size:11px; color:#555; font-weight:normal;">(${item.roadPath})</span>`;
+    }
+
+    htmlMsg += `
+      <tr>
+        <td style="font-weight: bold;">${item.scenario}</td>
+        <td>${acqDate}</td>
+        <td>${ssd}</td>
+        <td style="text-align: left;">${locDisplay}</td>
+        <td>${item.env}</td>
+        <td>${item.startTime}</td>
+        <td>${item.endTime}</td>
+        <td>${item.duration}</td>
+        <td style="text-align: left;">${item.target}</td>
+        <td style="text-align: left;">${item.note || ''}</td>
+        ${specTd}
+        ${childTd}
+      </tr>
+    `;
+  });
+
+  htmlMsg += `</tbody></table>`;
+
+  // EmailJS 파라미터 구조
+  // 입력된 모든 이메일로 각각 발송
+  var sendPromises = emailList.map(function(email) {
     var templateParams = {
-      to_email: targetEmail,
+      to_email: email,
       report_rows: htmlMsg,
       message_html: htmlMsg
     };
+    return emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams);
+  });
 
-    // 괄호 오류 수정된 정상 API 호출 방식
-    emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams)
-      .then(function() {
-        alert(targetEmail + ' (으)로 데이터 리포트 표가 전송되었습니다!');
-      }, function(err) {
-        alert('전송 실패: EmailJS 설정을 확인해주세요.\n' + JSON.stringify(err));
-      });
+  Promise.all(sendPromises)
+    .then(function() {
+      alert('총 ' + emailList.length + '명(' + emailList.join(', ') + ')에게 메일 전송이 완료되었습니다!');
+    })
+    .catch(function(err) {
+      alert('전송 실패: ' + JSON.stringify(err));
+    });
+}
+
+document.getElementById('btnDoSendEmail').addEventListener('click', executeSendEmail);
+  // 1. 저장된 이메일 목록을 화면(드롭다운)에 출력
+function renderSavedEmails() {
+  var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
+  var select = document.getElementById('savedEmailSelect');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">-- 저장된 이메일 목록 --</option>';
+
+  saved.forEach(function(email) {
+    var opt = document.createElement('option');
+    opt.value = email;
+    opt.textContent = email;
+    select.appendChild(opt);
+  });
+}
+
+// 2. 이메일 저장
+document.getElementById('btnSaveEmail').addEventListener('click', function() {
+  var inputVal = document.getElementById('targetEmailInput').value.trim();
+  if (!inputVal) { alert('저장할 이메일을 입력해 주세요.'); return; }
+
+  var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
+  var newEmails = inputVal.split(/[,;\s]+/).filter(Boolean);
+
+  newEmails.forEach(function(email) {
+    if (!saved.includes(email)) {
+      saved.push(email);
+    }
+  });
+
+  localStorage.setItem('savedEmailList', JSON.stringify(saved));
+  renderSavedEmails();
+  alert('이메일이 저장되었습니다.');
+});
+
+// 3. 목록에서 이메일 선택 시 입력창에 자동으로 채우기
+document.getElementById('savedEmailSelect').addEventListener('change', function() {
+  if (this.value) {
+    document.getElementById('targetEmailInput').value = this.value;
   }
+});
 
-  document.getElementById('btnDoSendEmail').addEventListener('click', executeSendEmail);
+// 4. 선택한 이메일 수정
+document.getElementById('btnEditEmail').addEventListener('click', function() {
+  var select = document.getElementById('savedEmailSelect');
+  var oldEmail = select.value;
 
-  // 내 위치 이동 버튼 이벤트
+  if (!oldEmail) { alert('목록에서 수정할 이메일을 먼저 선택해 주세요.'); return; }
+
+  var newEmail = prompt('이메일 주소를 수정해 주세요:', oldEmail);
+  if (newEmail && newEmail.trim() !== '') {
+    newEmail = newEmail.trim();
+    var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
+    var idx = saved.indexOf(oldEmail);
+    if (idx !== -1) {
+      saved[idx] = newEmail;
+      localStorage.setItem('savedEmailList', JSON.stringify(saved));
+      renderSavedEmails();
+      document.getElementById('targetEmailInput').value = newEmail;
+      alert('수정되었습니다.');
+    }
+  }
+});
+
+// 5. 선택한 이메일 삭제
+document.getElementById('btnDeleteEmail').addEventListener('click', function() {
+  var select = document.getElementById('savedEmailSelect');
+  var target = select.value;
+
+  if (!target) { alert('목록에서 삭제할 이메일을 먼저 선택해 주세요.'); return; }
+
+  if (confirm('\'' + target + '\' 이메일을 삭제하시겠습니까?')) {
+    var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
+    saved = saved.filter(function(e) { return e !== target; });
+
+    localStorage.setItem('savedEmailList', JSON.stringify(saved));
+    renderSavedEmails();
+    document.getElementById('targetEmailInput').value = '';
+    alert('삭제되었습니다.');
+  }
+});
+
+// 페이지 첫 로드 시 저장된 목록 불러오기 실행
+renderSavedEmails();
+
+// =========================================================
+   // 내 위치 이동 버튼 이벤트
   document.getElementById('btnMyLocation').addEventListener('click', function() {
     if (currentLat && currentLng) {
       var moveLatLng = new kakao.maps.LatLng(currentLat, currentLng);
@@ -1021,6 +1185,81 @@ database.ref('logs').on('value', function(snapshot) {
         }
       }
     });
+    // 시트 닫기 전용 함수
+function closeSheet() {
+  var sheet = document.getElementById('sheet');
+  if (sheet && sheet.style.display !== 'none') {
+    sheet.style.display = 'none';
+    if (typeof map !== 'undefined' && map) {
+      setTimeout(function() {
+        var center = map.getCenter();
+        map.relayout();
+        map.setCenter(center);
+      }, 50);
+    }
+  }
+}
+
+// 바탕화면 및 지도 터치 시 시트 닫기
+document.addEventListener('click', function(e) {
+  var sheet = document.getElementById('sheet');
+  var fabBtn = document.getElementById('fabBtn');
+  if (sheet && sheet.style.display === 'flex') {
+    if (!sheet.contains(e.target) && fabBtn && !fabBtn.contains(e.target)) {
+      closeSheet();
+    }
+  }
+});
+
+var timerInterval = null;
+
+// 타이머 화면 갱신 (시간 숫만 변경)
+function updateTimerDisplay(seconds) {
+  var hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
+  var min = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  var sec = String(seconds % 60).padStart(2, '0');
+  
+  var timeStr = '[' + hrs + ':' + min + ':' + sec + ']';
+  var activeTimerText = document.getElementById('overlayTimerVal');
+
+  if (activeTimerText) {
+    activeTimerText.textContent = timeStr;
+  }
+}
+
+// [취득 시작] 누를 때 실행되는 함수
+function startTimer() {
+  var startTime = Date.now();
+  if (timerInterval) clearInterval(timerInterval);
+
+  // 1. 숨겨져 있던 타이머 박스를 화면에 보이게 켜기
+  var timerOverlay = document.getElementById('mapOverlayTimer');
+  if (timerOverlay) {
+    timerOverlay.style.display = 'inline-flex';
+  }
+
+  // 2. 1초마다 타이머 숫자 올리기
+  updateTimerDisplay(0);
+  timerInterval = setInterval(function() {
+    var elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    updateTimerDisplay(elapsedSeconds);
+  }, 1000);
+}
+
+// [취득 종료] 누를 때 실행되는 함수
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  // 타이머 박스를 다시 화면에서 안 보이게 숨기기
+  var timerOverlay = document.getElementById('mapOverlayTimer');
+  if (timerOverlay) {
+    timerOverlay.style.display = 'none';
+  }
+}
+
 </script>
 </body>
 </html>
