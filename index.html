@@ -4,18 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>실시간 GPS 경로 및 취득 기록 앱</title>
-  
+
+  <!-- 모바일 전체화면 및 앱 설정 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- 바탕화면에 표시될 앱 아이콘 및 매니페스트 -->
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="manifest" href="manifest.json">
+
   <!-- Tabler Icons CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 
   <!-- EmailJS SDK -->
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-<script type="text/javascript">
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  <script type="text/javascript">
     (function(){
         // 전달주신 Public Key 적용 완료
         emailjs.init("r_c27LL0HBgpzMKoy");
     })();
-</script>
+  </script>
+</head>
+```<ElicitationsGroup>
+</ElicitationsGroup>
 
   <!-- Firebase SDK (v9/v10 호환 모듈) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
