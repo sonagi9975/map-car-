@@ -3,16 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>실시간 GPS 경로 및 취득 기록 앱</title>
+  <title>주차 탐색 및 기록 관리 앱</title>
 
-  <!-- 모바일 전체화면 및 앱 설정 -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-
-  <!-- 바탕화면에 표시될 앱 아이콘 및 매니페스트 -->
-  <link rel="apple-touch-icon" href="icon.png">
-  <link rel="manifest" href="manifest.json">
 
   <!-- Tabler Icons CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -20,34 +15,15 @@
   <!-- EmailJS SDK -->
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
   <script type="text/javascript">
-    (function(){
-        // 전달주신 Public Key 적용 완료
-        emailjs.init("r_c27LL0HBgpzMKoy");
-    })();
+    (function(){ emailjs.init("r_c27LL0HBgpzMKoy"); })();
   </script>
-</head>
-```<ElicitationsGroup>
-</ElicitationsGroup>
 
-  <!-- Firebase SDK (v9/v10 호환 모듈) -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <script>
-    // 전달주신 Firebase 연동 키 적용
-    const firebaseConfig = {
-      apiKey: "AIzaSyDJT0EYC80hDWgGX_aTPs6dEtTw1IB3XII",
-      authDomain: "mapcode-c6063.firebaseapp.com",
-      databaseURL: "https://mapcode-c6063-default-rtdb.firebaseio.com",
-      projectId: "mapcode-c6063",
-      storageBucket: "mapcode-c6063.firebasestorage.app",
-      messagingSenderId: "28310576121",
-      appId: "1:28310576121:web:a78a6c23cb9a19bd4cbb28",
-      measurementId: "G-2GC6LYENXR"
-    };
 
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-  </script>
+  <!-- 카카오맵 API -->
+  <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5b2873fe0317b06e6507efe9231f3691&libraries=services&autoload=false"></script>
 
   <style>
     :root {
@@ -79,13 +55,35 @@
     }
 
     .app-container {
-  width: 100%;
-  height: 100vh;
-  height: 100dvh; /* 모바일 주소창 높이를 뺀 실제 화면 높이에 맞춤 */
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-2);
-}
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface-2);
+      position: relative;
+    }
+
+    /* 상단 토스트 알림 배너 스타일 */
+    #toastBanner {
+      position: absolute;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(33, 37, 41, 0.9);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 3000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: top 0.3s ease-in-out;
+      pointer-events: none;
+    }
+    #toastBanner.show {
+      top: 16px;
+    }
 
     .app-header {
       padding: 12px 16px;
@@ -120,7 +118,7 @@
     .map-overlay-timer {
       position: absolute;
       left: 16px;
-      bottom: 16px;
+      top: 16px;
       z-index: 999;
       background: rgba(0, 0, 0, 0.85);
       backdrop-filter: blur(4px);
@@ -135,6 +133,7 @@
       font-weight: bold;
       color: #ff3b30;
       border: 1px solid rgba(255, 59, 48, 0.4);
+      pointer-events: none;
     }
 
     .fab-container {
@@ -161,31 +160,34 @@
       cursor: pointer;
     }
 
-    /* 기존 #sheet 항목을 찾아 아래 내용으로 변경 */
-#sheet {
-  display: none;
-  flex-direction: column;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  max-height: 65vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  border-top: 1px solid var(--border);
-  background: var(--surface-1);
-  z-index: 2000; /* 지도/버튼보다 확실하게 위로 올림 */
-  padding: 12px;
-  padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* 아이폰/갤럭시 하단 바 레이어 피함 */
-  box-sizing: border-box;
-}
-
-    .vertical-menu {
-      display: flex;
+    #sheet {
+      display: none;
       flex-direction: column;
-      gap: 8px;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      max-height: 75vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-top: 1px solid var(--border);
+      background: var(--surface-1);
+      z-index: 2000;
+      padding: 12px;
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+      box-sizing: border-box;
     }
 
+    .sheet-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .vertical-menu { display: flex; flex-direction: column; gap: 8px; }
     .vertical-menu-btn {
       width: 100%;
       height: 48px;
@@ -202,12 +204,7 @@
       gap: 12px;
       cursor: pointer;
     }
-
-    .vertical-menu-btn.primary {
-      background: #0d6efd;
-      color: #ffffff;
-      border: none;
-    }
+    .vertical-menu-btn.primary { background: #0d6efd; color: #ffffff; border: none; }
 
     .sub-view-header {
       display: flex;
@@ -218,15 +215,8 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .back-btn {
-      background: transparent;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-    }
+    .back-btn { background: transparent; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; }
+    .close-sheet-btn { background: transparent; border: none; font-size: 22px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; padding: 4px; }
 
     .form-group { display: flex; flex-direction: column; gap: 4px; }
     .form-group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
@@ -240,28 +230,12 @@
       background: var(--surface-1);
     }
 
-    .btn-action {
-      height: 40px;
-      border-radius: var(--radius);
-      border: none;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-    .config-box {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px;
-      margin-bottom: 10px;
-    }
+    .tags-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+    .tag-chip { padding: 6px 4px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface-1); font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; text-align: center; }
+    .tag-chip.active { border-color: #0d6efd; background: #e7f1ff; color: #0d6efd; }
 
     .active-recording-inputs {
       background: #f0f7ff;
@@ -274,76 +248,52 @@
       gap: 8px;
     }
 
-    .history-card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px;
-      margin-bottom: 8px;
-      background: var(--surface-1);
+    .day-report-box {
+      border: 1.5px solid #dee2e6;
+      border-radius: 10px;
+      background: #fff;
+      padding: 12px;
+      margin-bottom: 12px;
       font-size: 13px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
     }
-    
-    .badge-type {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: bold;
-      width: fit-content;
+
+    .destination-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fdfdfd;
+      padding: 10px;
+      margin-top: 8px;
     }
+
+    .badge-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; width: fit-content; }
     .badge-road { background: #e7f1ff; color: #0d6efd; }
     .badge-parking { background: #e8f8f0; color: #198754; }
 
-    .icon-btn {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      padding: 2px 4px;
-      border-radius: 4px;
-      font-size: 15px;
-      display: inline-flex;
-      align-items: center;
-    }
-    .icon-btn:hover { background: var(--surface-2); }
-    .btn-edit-save { background: #0d6efd; color: white; padding: 4px 10px; border-radius: 4px; border: none; font-size: 12px; cursor: pointer; }
-    .btn-edit-cancel { background: #6c757d; color: white; padding: 4px 10px; border-radius: 4px; border: none; font-size: 12px; cursor: pointer; }
+    .icon-btn { background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 14px; display: inline-flex; align-items: center; }
+    .btn-action { height: 40px; border-radius: var(--radius); border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
   </style>
-
-  <!-- 카카오맵 API -->
-<script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5b2873fe0317b06e6507efe9231f3691&libraries=services"></script>
+</head>
 <body>
 <div class="app-container">
+  <!-- 상단 토스트 알림 배너 -->
+  <div id="toastBanner">기록되었습니다.</div>
+
   <div class="app-header">
-    <span style="font-size: 16px; font-weight: 600; color: var(--text-primary);">GPS 위치 및 기록 관리</span>
+    <span style="font-size: 16px; font-weight: 600; color: var(--text-primary);">주차 탐색 및 기록 관리</span>
   </div>
 
   <div class="selected-location-bar">
     <span id="currentLocText"><i class="ti ti-map-pin" style="margin-right: 4px;"></i>현재 위치 수신 중...</span>
   </div>
 
-  <div class="map-wrapper" style="position: relative;">
-  <div id="map"></div>
-  
-  <!-- 늘어남 방지 및 좌측 상단(빨간 박스) 콕 찝어 고정 -->
-  <div id="mapOverlayTimer" class="map-overlay-timer" style="
-    display: none; 
-    position: absolute !important; 
-    top: 16px !important; 
-    bottom: auto !important; 
-    left: 16px !important; 
-    right: auto !important;
-    height: auto !important; 
-    z-index: 999999 !important; 
-    pointer-events: none;
-  ">
-    <span style="color: #ff4d4d; font-weight: bold;">🔴 REC</span>
-    <span id="overlayTimerVal">[00:00:00]</span>
-    <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
-  </div>
-</div>
+  <div class="map-wrapper">
+    <div id="map"></div>
+    
+    <div id="mapOverlayTimer" class="map-overlay-timer">
+      <span style="color: #ff4d4d; font-weight: bold;">🔴 REC</span>
+      <span id="overlayTimerVal">[00:00:00]</span>
+      <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
+    </div>
 
     <div class="fab-container">
       <button id="btnMyLocation" class="fab-btn" aria-label="현재 위치로 이동">
@@ -357,368 +307,375 @@
 
   <!-- 하단 바텀시트 패널 -->
   <div id="sheet">
-    
     <!-- 1. 메인 세로 메뉴 -->
     <div id="menuMain" class="vertical-menu">
+      <div class="sheet-header-bar">
+        <span style="font-weight: bold; font-size: 15px; color: var(--text-primary);">메뉴</span>
+        <button class="close-sheet-btn" id="btnCloseSheetMain" aria-label="닫기"><i class="ti ti-x"></i></button>
+      </div>
       <button class="vertical-menu-btn" id="menuBtnRecord">
         <i class="ti ti-edit" style="font-size: 20px; color: #0d6efd;"></i>
-        <span>기록 측정</span>
+        <span>기록 측정 (도로 주행 / 주차장)</span>
       </button>
       <button class="vertical-menu-btn" id="menuBtnHistory">
         <i class="ti ti-list-details" style="font-size: 20px; color: #198754;"></i>
-        <span>기록 정보</span>
+        <span>지난 기록 (차종별/날짜별 리포트)</span>
       </button>
       <button class="vertical-menu-btn primary" id="menuBtnEmailView">
         <i class="ti ti-mail" style="font-size: 20px;"></i>
-        <span>이메일 보내기</span>
+        <span>수신 이메일 주소 설정</span>
       </button>
     </div>
 
     <!-- 2. 세부 화면: 기록 측정 -->
-    <div id="viewRecord" style="display: none; flex-direction: column; gap: 10px;">
+    <div id="viewRecord" style="display: none; flex-direction: column; gap: 14px;">
       <div class="sub-view-header">
         <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
-        <span style="font-weight: bold; font-size: 15px;">기록 측정</span>
+        <span style="font-weight: bold; font-size: 16px; flex: 1;">주차 탐색 기록</span>
+        <button class="close-sheet-btn closeSheetAll" aria-label="닫기"><i class="ti ti-x"></i></button>
       </div>
 
-      <!-- 공통 기본 항목 -->
-      <div class="config-box">
-        <span style="font-size: 12px; font-weight: bold; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-          ⚙️ 공통 기본 설정
-        </span>
-        <div class="grid-2">
-          <div class="form-group">
-            <label>SSD</label>
-            <input type="text" id="inputSSD" class="form-control" value="14">
+      <div id="initialSetupBox" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label>차종 선택</label>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" id="btnCarLX2" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-secondary); font-weight: bold; cursor: pointer;">🔵 LX2</button>
+            <button type="button" id="btnCarGN7" style="flex: 1; padding: 10px; border-radius: 8px; border: 2px solid #d97706; background: #fff7ed; color: #d97706; font-weight: bold; cursor: pointer;">🟠 GN7</button>
           </div>
-          <div class="form-group">
-            <label>취득일</label>
-            <input type="date" id="inputAcqDate" class="form-control">
-          </div>
+        </div>
+        <div class="form-group">
+          <label>출발 키로수 (필수 입력)</label>
+          <input type="number" id="inputStartKm" class="form-control" placeholder="예: 10405" value="">
+        </div>
+        <div class="form-group">
+          <label>SSD 번호 (선택)</label>
+          <input type="text" id="inputSSD" class="form-control" placeholder="SSD 입력" value="">
+        </div>
+        <div class="form-group">
+          <label>첫 목적지 (선택)</label>
+          <input type="text" id="inputFirstTarget" class="form-control" placeholder="목적지 입력" value="">
         </div>
       </div>
 
-      <!-- 주행 측정 영역 -->
-      <div style="display: flex; flex-direction: column; gap: 6px;">
-        <span style="font-size: 13px; font-weight: bold; color: var(--text-secondary);">🚗 주행 측정</span>
+      <hr style="border: none; border-top: 1px solid var(--border-strong); margin: 4px 0;">
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 13px; font-weight: bold; color: var(--text-secondary);">🚗 [1] 일반 도로 주행 기록</span>
         <div id="panelRoadBtn" style="display: flex; gap: 8px;"></div>
-        
-        <div id="panelRoadInputs" class="active-recording-inputs" style="display: none;">
-          <span style="font-size: 12px; font-weight: bold; color: #0d6efd;">📝 주행 측정 중 상세 설정</span>
-          <div class="grid-2">
-            <div class="form-group">
-              <label>시나리오</label>
-              <input type="text" id="roadScenario" class="form-control" value="주행">
-            </div>
-            <div class="form-group">
-              <label>목표 대상</label>
-              <input type="text" id="roadTarget" class="form-control" value="특수차량 / 어린이 / PM">
-            </div>
-          </div>
-          <div class="grid-2">
-            <div class="form-group">
-              <label>SPECIAL</label>
-              <select id="roadSpecialCar" class="form-control">
-                <option value="o">o</option>
-                <option value="x" selected>x</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>아이</label>
-              <select id="roadChild" class="form-control">
-                <option value="o">o</option>
-                <option value="x" selected>x</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>비고</label>
-            <input type="text" id="roadNote" class="form-control" placeholder="특이사항 입력">
-          </div>
-        </div>
-      </div>
 
-      <!-- 주차 측정 영역 -->
-      <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-        <span style="font-size: 13px; font-weight: bold; color: var(--text-secondary);">🅿️ 주차 측정</span>
+        <span style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-top: 4px;">🅿️ [2] 주차장 안쪽 탐색 및 주차 기록</span>
         <div id="panelParkingBtn" style="display: flex; gap: 8px;"></div>
+      </div>
 
-        <div id="panelParkingInputs" class="active-recording-inputs" style="display: none;">
-          <span style="font-size: 12px; font-weight: bold; color: #0d6efd;">📝 주차 측정 중 상세 설정</span>
-          <div class="grid-2">
-            <div class="form-group">
-              <label>시나리오</label>
-              <input type="text" id="parkingScenario" class="form-control" value="주차">
-            </div>
-            <div class="form-group">
-              <label>목표 대상</label>
-              <input type="text" id="parkingTarget" class="form-control" value="특수차량 / 어린이 / PM">
-            </div>
-          </div>
-          <div class="grid-2">
-            <div class="form-group">
-              <label>SPECIAL</label>
-              <select id="parkingSpecialCar" class="form-control">
-                <option value="o">o</option>
-                <option value="x" selected>x</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>아이</label>
-              <select id="parkingChild" class="form-control">
-                <option value="o">o</option>
-                <option value="x" selected>x</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>비고</label>
-            <input type="text" id="parkingNote" class="form-control" placeholder="특이사항 입력">
+      <div id="panelRoadInputs" class="active-recording-inputs" style="display: none;">
+        <span style="font-size: 12px; font-weight: bold; color: #0d6efd;">📝 도로 주행 측정 중 (특이사항 연속 터치 가능)</span>
+        <div class="form-group">
+          <div class="tags-grid" id="roadTagsGrid">
+            <div class="tag-chip" data-val="특수차">특수차</div>
+            <div class="tag-chip" data-val="아이">아이</div>
+            <div class="tag-chip" data-val="볼라드">볼라드</div>
+            <div class="tag-chip" data-val="턱">턱</div>
           </div>
         </div>
       </div>
 
-    </div>
-
-    <!-- 3. 세부 화면: 기록 정보 -->
-    <div id="viewHistory" style="display: none; flex-direction: column; gap: 10px;">
-      <div class="sub-view-header">
-        <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
-        <span style="font-weight: bold; font-size: 15px;">기록 정보 (전체 취득 목록)</span>
-      </div>
-      <div id="historySummary" style="font-size: 12px; color: var(--text-secondary); font-weight: bold; padding-bottom: 4px;"></div>
-      <div id="historyCards" style="max-height: 320px; overflow-y: auto;"></div>
-    </div>
-
-    <!-- 4. 세부 화면: 이메일 전송 -->
-    <div id="viewEmail" style="display: none; flex-direction: column; gap: 12px;">
-      <div class="sub-view-header">
-        <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
-        <span style="font-weight: bold; font-size: 15px;">이메일 전송</span>
-      </div>
-
-      <!-- 이메일 직접 입력 및 저장 -->
-      <div class="form-group">
-        <label>수신 이메일 주소</label>
-        <div style="display: flex; gap: 6px;">
-          <input type="email" id="targetEmailInput" class="form-control" placeholder="example@email.com" style="flex: 1;">
-          <button type="button" id="btnSaveEmail" class="btn-action" style="background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-primary); padding: 0 12px;">저장</button>
-        </div>
-        <span id="emailSaveMsg" style="font-size: 11px; color: var(--text-success); display: none;">✓ 이메일 주소가 저장되었습니다.</span>
-      </div>
-
-      <!-- 📍 [추가된 부분] 저장된 이메일 목록 선택 / 수정 / 삭제 -->
-      <div class="form-group">
-        <label>저장된 이메일 목록</label>
-        <div style="display: flex; gap: 6px;">
-          <select id="savedEmailSelect" class="form-control" style="flex: 1;">
-            <option value="">-- 저장된 이메일 목록 --</option>
-          </select>
-          <button type="button" id="btnEditEmail" class="btn-action" style="background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-primary); padding: 0 10px;">수정</button>
-          <button type="button" id="btnDeleteEmail" class="btn-action" style="background: #dc3545; color: #fff; border: none; padding: 0 10px;">삭제</button>
+      <div id="panelParkingInputs" class="active-recording-inputs" style="display: none; background: #f0fff4; border-color: #198754;">
+        <span style="font-size: 12px; font-weight: bold; color: #198754;">📝 주차장 탐색 및 주차 측정 중 (특이사항 연속 터치 가능)</span>
+        <div class="form-group">
+          <div class="tags-grid" id="parkingTagsGrid">
+            <div class="tag-chip" data-val="특수차">특수차</div>
+            <div class="tag-chip" data-val="아이">아이</div>
+            <div class="tag-chip" data-val="볼라드">볼라드</div>
+            <div class="tag-chip" data-val="턱">턱</div>
+          </div>
         </div>
       </div>
 
-      <button id="btnDoSendEmail" class="btn-action" style="background: #0d6efd; color: #fff; margin-top: 8px;">
-        <i class="ti ti-send"></i> 표 형태 데이터 이메일 전송
+      <!-- 오늘 측정 종료 버튼 -->
+      <button type="button" id="btnEndToday" class="btn-action" style="background: #6c757d; color: #fff; margin-top: 10px;">
+        <i class="ti ti-power"></i> 오늘 측정 종료 (도착 km 입력 및 리셋)
       </button>
     </div>
 
+    <!-- 3. 세부 화면: 지난 기록 -->
+    <div id="viewHistory" style="display: none; flex-direction: column; gap: 10px;">
+      <div class="sub-view-header">
+        <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
+        <span style="font-weight: bold; font-size: 15px; flex: 1;">지난 기록 리포트</span>
+        <button class="close-sheet-btn closeSheetAll" aria-label="닫기"><i class="ti ti-x"></i></button>
+      </div>
+
+      <!-- 차종별 팀 구분 탭 -->
+      <div style="display: flex; gap: 8px; margin-bottom: 4px;">
+        <button type="button" id="tabCarLX2" onclick="switchCarTab('LX2')" style="flex:1; padding:8px; border-radius:6px; border:1px solid var(--border-strong); background:#e7f1ff; color:#0d6efd; font-weight:bold; font-size:13px; cursor:pointer;">🔵 LX2 팀 기록</button>
+        <button type="button" id="tabCarGN7" onclick="switchCarTab('GN7')" style="flex:1; padding:8px; border-radius:6px; border:1px solid var(--border-strong); background:#fff; color:var(--text-secondary); font-weight:bold; font-size:13px; cursor:pointer;">🟠 GN7 팀 기록</button>
+      </div>
+
+      <div id="historyCards"></div>
+    </div>
+
+    <!-- 4. 세부 화면: 이메일 설정 탭 -->
+    <div id="viewEmail" style="display: none; flex-direction: column; gap: 12px;">
+      <div class="sub-view-header">
+        <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
+        <span style="font-weight: bold; font-size: 15px; flex: 1;">수신 이메일 주소 설정</span>
+        <button class="close-sheet-btn closeSheetAll" aria-label="닫기"><i class="ti ti-x"></i></button>
+      </div>
+
+      <div style="background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 10px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">현재 등록된 수신 주소</span>
+          <span id="displaySavedEmail" style="font-size: 13px; font-weight: bold; color: var(--text-primary);">등록된 이메일이 없습니다.</span>
+        </div>
+        <button type="button" id="btnDeleteEmail" class="btn-action" style="background: var(--bg-danger); color: var(--text-danger); border: none; height: 32px; padding: 0 10px; font-size: 12px; display: none;">삭제</button>
+      </div>
+
+      <div class="form-group" style="margin-top: 4px;">
+        <label>이메일 주소 변경 또는 신규 등록</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="email" id="targetEmailInput" class="form-control" placeholder="example@email.com" style="flex: 1;">
+          <button type="button" id="btnSaveEmail" class="btn-action" style="background: #0d6efd; color:#fff; border: none; padding: 0 14px;">저장</button>
+        </div>
+        <span id="emailSaveMsg" style="font-size: 11px; color: var(--text-success); display: none;">✓ 저장되었습니다.</span>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-window.onload = function() {
-  if (typeof kakao === 'undefined' || !kakao.maps) {
-    alert('카카오맵 API 로드 실패');
-    return;
-  }
+  const firebaseConfig = {
+    apiKey: "AIzaSyDJT0EYC80hDWgGX_aTPs6dEtTw1IB3XII",
+    authDomain: "mapcode-c6063.firebaseapp.com",
+    databaseURL: "https://mapcode-c6063-default-rtdb.firebaseio.com",
+    projectId: "mapcode-c6063",
+    storageBucket: "mapcode-c6063.firebasestorage.app",
+    messagingSenderId: "28310576121",
+    appId: "1:28310576121:web:a78a6c23cb9a19bd4cbb28"
+  };
 
-  document.getElementById('inputAcqDate').value = new Date().toISOString().substring(0, 10);
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
 
-  var savedEmail = localStorage.getItem('savedTargetEmail') || '';
-  document.getElementById('targetEmailInput').value = savedEmail;
+  let map = null;
+  let currentMarker = null;
+  let currentLat = 37.5665;
+  let currentLng = 126.9780;
+  let currentAddressStr = '위치 수신 중...';
+  let selectedCarModel = 'GN7';
+  let currentHistoryCarTab = 'LX2';
+  let timerInterval = null;
+  window.globalLogs = [];
 
-  var geocoder = new kakao.maps.services.Geocoder();
-
-  // 지도 기본 설정
-  var mapContainer = document.getElementById('map');
-  var mapOption = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 3 };
-  var map = new kakao.maps.Map(mapContainer, mapOption);
-
-  var currentMarker = new kakao.maps.Marker({ map: map });
-  var currentLat = 37.5665;
-  var currentLng = 126.9780;
-  var currentAddressStr = '위치 검색 중...';
-
-  // 브라우저 저장소(localStorage)에서 기존 기록을 가져오고, 없으면 빈 배열로 시작
-var globalLogs = [];
-var editingId = null;
-
-// Firebase 실시간 동기화 (로컬 백업 저장소 동시 연동)
-database.ref('logs').on('value', function(snapshot) {
-  var data = snapshot.val();
-  globalLogs = [];
-  if (data) {
-    Object.keys(data).forEach(function(key) {
-      globalLogs.push(Object.assign({ id: key }, data[key]));
-    });
-    localStorage.setItem('myMapLogs', JSON.stringify(globalLogs));
-  } else {
-    globalLogs = JSON.parse(localStorage.getItem('myMapLogs') || '[]');
-  }
-  
-  // 데이터 동기화 즉시 화면 및 날짜별 그룹 갱신
-  renderHistory();
-});
-
-  var currentRecordingState = {
+  let currentRecordingState = {
     active: false,
     type: null,
     startTime: null,
     startStr: '',
+    startCoords: null,
     pathCoords: [],
-    polyline: null
+    subEvents: []
   };
-
-  var timerInterval = null;
-  var watchPositionId = null;
-
-  // GPS 위치 실시간 추적
-  if ("geolocation" in navigator) {
-    watchPositionId = navigator.geolocation.watchPosition(function(pos) {
-      currentLat = pos.coords.latitude;
-      currentLng = pos.coords.longitude;
-      var latLng = new kakao.maps.LatLng(currentLat, currentLng);
-
-      currentMarker.setPosition(latLng);
-
-      if (currentRecordingState.active) {
-        currentRecordingState.pathCoords.push(latLng);
-        if (currentRecordingState.polyline) {
-          currentRecordingState.polyline.setPath(currentRecordingState.pathCoords);
-        }
-        document.getElementById('pathPointCount').textContent = '(' + currentRecordingState.pathCoords.length + 'pts)';
-      }
-
-      geocoder.coord2Address(currentLng, currentLat, function(result, status) {
-        if (status === kakao.maps.services.Status.OK) {
-          var addr = result[0].road_address ? result[0].road_address.address_name : result[0].address.address_name;
-          currentAddressStr = addr;
-          document.getElementById('currentLocText').innerHTML = '<i class="ti ti-map-pin"></i> 현재 위치: <strong>' + addr + '</strong>';
-        }
-      });
-    }, function(err) {
-      console.warn("GPS 수신 오류:", err.message);
-    }, {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000
-    });
-  } else {
-    alert("GPS(위치 정보)를 지원하지 않는 브라우저입니다.");
-  }
 
   function fmt(n) { return String(n).padStart(2, '0'); }
   function nowShortTimeStr() { var d = new Date(); return d.getHours() + ':' + fmt(d.getMinutes()); }
 
-  function formatStopwatch(ms) {
-    var sec = Math.floor(ms / 1000);
-    return '[' + fmt(Math.floor(sec / 3600)) + ':' + fmt(Math.floor((sec % 3600) / 60)) + ':' + fmt(sec % 60) + ']';
+  function showToast(message) {
+    var toast = document.getElementById('toastBanner');
+    if (!toast) return;
+    toast.textContent = message || '기록되었습니다.';
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 1500);
   }
 
-  function formatDurationText(ms) {
-    var sec = Math.floor(ms / 1000);
-    var hrs = Math.floor(sec / 3600);
-    var mins = Math.floor((sec % 3600) / 60);
-    return hrs + ':' + fmt(mins);
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  window.showView = function(viewId) {
+    ['menuMain', 'viewRecord', 'viewHistory', 'viewEmail'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    if (viewId === 'main') document.getElementById('menuMain').style.display = 'flex';
+    else if (viewId === 'record') document.getElementById('viewRecord').style.display = 'flex';
+    else if (viewId === 'history') { document.getElementById('viewHistory').style.display = 'flex'; renderHistory(); }
+    else if (viewId === 'email') { document.getElementById('viewEmail').style.display = 'flex'; updateEmailViewUI(); }
+
+    setTimeout(() => { if (map && typeof map.relayout === 'function') map.relayout(); }, 100);
+  };
+
+  window.switchCarTab = function(carName) {
+    currentHistoryCarTab = carName;
+    var btnLX2 = document.getElementById('tabCarLX2');
+    var btnGN7 = document.getElementById('tabCarGN7');
+
+    if (carName === 'LX2') {
+      btnLX2.style.background = '#e7f1ff';
+      btnLX2.style.color = '#0d6efd';
+      btnGN7.style.background = '#fff';
+      btnGN7.style.color = 'var(--text-secondary)';
+    } else {
+      btnGN7.style.background = '#fff7ed';
+      btnGN7.style.color = '#d97706';
+      btnLX2.style.background = '#fff';
+      btnLX2.style.color = 'var(--text-secondary)';
+    }
+    renderHistory();
+  };
+
+  function updateEmailViewUI() {
+    var savedEmail = localStorage.getItem('savedTargetEmail') || '';
+    var displayEl = document.getElementById('displaySavedEmail');
+    var deleteBtn = document.getElementById('btnDeleteEmail');
+    var inputEl = document.getElementById('targetEmailInput');
+
+    if (savedEmail) {
+      displayEl.textContent = savedEmail;
+      displayEl.style.color = 'var(--text-primary)';
+      deleteBtn.style.display = 'inline-flex';
+      inputEl.value = savedEmail;
+    } else {
+      displayEl.textContent = '등록된 이메일이 없습니다.';
+      displayEl.style.color = 'var(--text-muted)';
+      deleteBtn.style.display = 'none';
+      inputEl.value = '';
+    }
+  }
+
+  function updateTimerDisplay(seconds) {
+    var hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
+    var min = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+    var sec = String(seconds % 60).padStart(2, '0');
+    var timerEl = document.getElementById('overlayTimerVal');
+    if (timerEl) timerEl.textContent = '[' + hrs + ':' + min + ':' + sec + ']';
+  }
+
+  function startTimer() {
+    var startTime = Date.now();
+    if (timerInterval) clearInterval(timerInterval);
+    document.getElementById('mapOverlayTimer').style.display = 'inline-flex';
+    updateTimerDisplay(0);
+    timerInterval = setInterval(() => {
+      updateTimerDisplay(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    document.getElementById('mapOverlayTimer').style.display = 'none';
+  }
+
+  function initTagChips(containerId) {
+    document.querySelectorAll('#' + containerId + ' .tag-chip').forEach(chip => {
+      chip.addEventListener('click', function() {
+        if (!currentRecordingState.active) {
+          showToast("먼저 측정을 시작해 주세요!");
+          return;
+        }
+        var val = this.getAttribute('data-val');
+        var timeStr = nowShortTimeStr();
+
+        currentRecordingState.subEvents.push({
+          type: 'tag',
+          title: val,
+          timeStr: timeStr
+        });
+
+        showToast('✨ ' + val + ' (' + timeStr + ') 기록됨!');
+        
+        this.style.background = '#0d6efd';
+        this.style.color = '#fff';
+        setTimeout(() => { this.style.background = ''; this.style.color = ''; }, 200);
+      });
+    });
   }
 
   function buildPanel(cat) {
     var isRoad = cat === 'road';
     var panelBtn = document.getElementById(isRoad ? 'panelRoadBtn' : 'panelParkingBtn');
+    if (!panelBtn) return;
     
     panelBtn.innerHTML =
-      '<button class="startBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-success); color:var(--text-success); font-size:13px; font-weight:600; cursor:pointer;"><i class="ti ti-player-play"></i>취득 시작</button>' +
-      '<button class="stopBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-danger); color:var(--text-danger); font-size:13px; font-weight:600; opacity:0.5; cursor:pointer;" disabled><i class="ti ti-player-pause"></i>취득 종료</button>';
+      '<button class="startBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-success); color:var(--text-success); font-size:13px; font-weight:600; cursor:pointer;"><i class="ti ti-player-play"></i>' + (isRoad ? '도로 주행 시작' : '주차장 기록 시작') + '</button>' +
+      '<button class="stopBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-danger); color:var(--text-danger); font-size:13px; font-weight:600; opacity:0.5; cursor:pointer;" disabled><i class="ti ti-player-pause"></i>기록 정지</button>';
 
     var startBtn = panelBtn.querySelector('.startBtn');
     var stopBtn = panelBtn.querySelector('.stopBtn');
 
     startBtn.addEventListener('click', function() {
-      if (currentRecordingState.active) {
-        alert("이미 다른 측정이 진행 중입니다.");
+      var startKmVal = document.getElementById('inputStartKm')?.value.trim();
+      if (!startKmVal) {
+        showToast('출발 키로수를 먼저 입력해 주세요!');
+        document.getElementById('inputStartKm').focus();
         return;
       }
 
+      if (currentRecordingState.active) { showToast("이미 다른 측정이 진행 중입니다."); return; }
+      document.getElementById('initialSetupBox').style.display = 'none';
+      startTimer();
+
       var startLatLng = new kakao.maps.LatLng(currentLat, currentLng);
-      map.panTo(startLatLng);
+      if (map) map.panTo(startLatLng);
 
-      var newPolyline = new kakao.maps.Polyline({
-        map: map,
-        path: [startLatLng],
-        strokeWeight: 5,
-        strokeColor: isRoad ? '#0d6efd' : '#198754',
-        strokeOpacity: 0.8,
-        strokeStyle: 'solid'
-      });
-
+      var startT = nowShortTimeStr();
       currentRecordingState = {
         active: true,
         type: cat,
         startTime: Date.now(),
-        startStr: nowShortTimeStr(),
-        pathCoords: [startLatLng],
-        polyline: newPolyline
+        startStr: startT,
+        startCoords: { lat: currentLat, lng: currentLng },
+        subEvents: []
       };
-
       syncUI();
+      showToast('측정이 시작되었습니다.');
     });
 
     stopBtn.addEventListener('click', function() {
       if (!currentRecordingState.active || currentRecordingState.type !== cat) return;
+      stopTimer();
 
-      var envVal = '';
-      if (isRoad) {
-        var choice = prompt('주행 환경을 선택해주세요 (1 또는 2 입력):\n1. 일반도로\n2. 고속도로', '1');
-        if (choice === null) return;
-        envVal = (choice.trim() === '2') ? '고속도로' : '일반도로';
-      } else {
-        envVal = '지하주차장';
+      var endT = nowShortTimeStr();
+      var d = new Date();
+      var dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
+
+      var distanceKm = 0;
+      if (currentRecordingState.startCoords) {
+        distanceKm = calculateDistance(
+          currentRecordingState.startCoords.lat,
+          currentRecordingState.startCoords.lng,
+          currentLat,
+          currentLng
+        );
       }
 
-      var durationMs = Date.now() - currentRecordingState.startTime;
-      var durationStr = formatDurationText(durationMs);
-      var endStr = nowShortTimeStr();
-
-      var endLocationName = currentAddressStr;
-
-      var scenarioVal = document.getElementById(isRoad ? 'roadScenario' : 'parkingScenario').value || (isRoad ? '주행' : '주차');
-      var targetVal = document.getElementById(isRoad ? 'roadTarget' : 'parkingTarget').value;
-      var specialVal = document.getElementById(isRoad ? 'roadSpecialCar' : 'parkingSpecialCar').value;
-      var childVal = document.getElementById(isRoad ? 'roadChild' : 'parkingChild').value;
-      var noteVal = document.getElementById(isRoad ? 'roadNote' : 'parkingNote').value;
-
       var logData = {
+        carModel: selectedCarModel,
+        startKm: document.getElementById('inputStartKm')?.value || '',
+        endKm: '',
+        ssd: document.getElementById('inputSSD')?.value || '',
+        targetName: document.getElementById('inputFirstTarget')?.value || currentAddressStr,
         type: cat,
-        scenario: scenarioVal,
-        location: endLocationName,
-        env: envVal,
+        dateKey: dateKey,
         startTime: currentRecordingState.startStr,
-        endTime: endStr,
-        duration: durationStr,
-        target: targetVal,
-        special: specialVal,
-        child: childVal,
-        note: noteVal,
+        endTime: endT,
+        distance: distanceKm.toFixed(2),
+        subEvents: currentRecordingState.subEvents,
         timestamp: Date.now()
       };
 
-      database.ref('logs').push(logData);
+      if (typeof database !== 'undefined') database.ref('logs').push(logData);
 
       currentRecordingState.active = false;
       syncUI();
-      alert('취득이 완료되었습니다!\n종료 위치: ' + endLocationName);
+      showToast('[' + selectedCarModel + '] 기록 저장 완료');
     });
   }
 
@@ -726,552 +683,381 @@ database.ref('logs').on('value', function(snapshot) {
     var isRec = currentRecordingState.active;
     var recType = currentRecordingState.type;
 
-    ['road', 'parking'].forEach(function(cat) {
+    ['road', 'parking'].forEach(cat => {
       var panelBtn = document.getElementById(cat === 'road' ? 'panelRoadBtn' : 'panelParkingBtn');
       var inputsBox = document.getElementById(cat === 'road' ? 'panelRoadInputs' : 'panelParkingInputs');
+      if (!panelBtn || !inputsBox) return;
+
       var startBtn = panelBtn.querySelector('.startBtn');
       var stopBtn = panelBtn.querySelector('.stopBtn');
-
       var thisIsRec = isRec && recType === cat;
 
       startBtn.disabled = isRec;
       startBtn.style.opacity = isRec ? '0.5' : '1';
-
       stopBtn.disabled = !thisIsRec;
       stopBtn.style.opacity = thisIsRec ? '1' : '0.5';
-
       inputsBox.style.display = thisIsRec ? 'flex' : 'none';
     });
-
-    var overlayTimer = document.getElementById('mapOverlayTimer');
-    var overlayTimerVal = document.getElementById('overlayTimerVal');
-
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-
-    if (isRec) {
-      overlayTimer.style.display = 'flex';
-      var updateTimer = function() {
-        overlayTimerVal.textContent = formatStopwatch(Date.now() - currentRecordingState.startTime);
-      };
-      updateTimer();
-      timerInterval = setInterval(updateTimer, 1000);
-    } else {
-      overlayTimer.style.display = 'none';
-    }
   }
 
-  buildPanel('road');
-  buildPanel('parking');
-
-  // 지도 재계산 로직이 포함된 화면 전환 함수
-  function showView(viewId) {
-    document.getElementById('menuMain').style.display = 'none';
-    document.getElementById('viewRecord').style.display = 'none';
-    document.getElementById('viewHistory').style.display = 'none';
-    document.getElementById('viewEmail').style.display = 'none';
-
-    if (viewId === 'main') {
-      document.getElementById('menuMain').style.display = 'flex';
-    } else if (viewId === 'record') {
-      document.getElementById('viewRecord').style.display = 'flex';
-    } else if (viewId === 'history') {
-      document.getElementById('viewHistory').style.display = 'flex';
-      renderHistory();
-    } else if (viewId === 'email') {
-      document.getElementById('viewEmail').style.display = 'flex';
+  // 🌟 [데이터 수집 리포트] 이메일 양식 적용 함수
+  window.sendReportByEmail = function(dateKey, carModel) {
+    var savedEmail = localStorage.getItem('savedTargetEmail');
+    if (!savedEmail) {
+      showToast('이메일 주소를 먼저 설정해 주세요.');
+      showView('email');
+      return;
     }
 
-    // 패널 크기 변화 대응 지도 재계산
-    setTimeout(function() {
-      if (map) {
-        var center = map.getCenter();
-        map.relayout();
-        map.setCenter(center);
-      }
-    }, 100);
-  }
+    var filteredLogs = window.globalLogs.filter(item => item.dateKey === dateKey && (item.carModel || 'GN7') === carModel);
+    var formattedDate = dateKey.replace(/-/g, '');
 
-  document.getElementById('menuBtnRecord').addEventListener('click', function() { showView('record'); });
-  document.getElementById('menuBtnHistory').addEventListener('click', function() { showView('history'); });
-  document.getElementById('menuBtnEmailView').addEventListener('click', function() { showView('email'); });
-  
-  document.querySelectorAll('.backToMenu').forEach(function(btn) {
-    btn.addEventListener('click', function() { showView('main'); });
-  });
+    var rowsHtml = '';
+    filteredLogs.forEach((item) => {
+      var scenario = item.type === 'parking' ? '주차' : '주행';
+      var environment = item.type === 'parking' ? '지하주차장' : '일반도로';
+      var startTime = item.startTime || '16:48';
+      var endTime = item.endTime || '16:48';
+      var targetName = item.targetName || '서울 강남구 논현동 279-128';
+      var ssdVal = item.ssd || '14';
 
-  document.getElementById('btnSaveEmail').addEventListener('click', function() {
-    var emailVal = document.getElementById('targetEmailInput').value.trim();
-    localStorage.setItem('savedTargetEmail', emailVal);
-    var msg = document.getElementById('emailSaveMsg');
-    msg.style.display = 'inline';
-    setTimeout(function() { msg.style.display = 'none'; }, 2000);
-  });
+      rowsHtml += `
+        <tr>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${scenario}</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${formattedDate}</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${ssdVal}</td>
+          <td style="border:1px solid #ddd; padding:8px; background:#fff;">${targetName}</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${environment}</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${startTime}</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${endTime}</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">0:00</td>
+          <td style="border:1px solid #ddd; padding:8px; background:#fff;">특수차량 / 어린이 / PM</td>
+          <td style="border:1px solid #ddd; padding:8px; background:#fff;"></td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fce8e6; color:#c53929;">x</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fce8e6; color:#c53929;">x</td>
+        </tr>
+      `;
+    });
 
-  // 기록 삭제
-  window.deleteLogItem = function(logId) {
-    if (!confirm('이 취득 기록을 삭제하시겠습니까?')) return;
-    database.ref('logs/' + logId).remove()
-      .then(function() { alert('삭제되었습니다.'); })
-      .catch(function(err) { alert('삭제 실패: ' + err.message); });
-  };
+    var htmlContent = `
+      <div style="font-family:sans-serif; font-size:13px; color:#212529;">
+        <h3 style="margin-bottom:12px; font-size:16px; font-weight:bold;">📋 데이터 수집 리포트 [${carModel}]</h3>
+        <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+          <thead>
+            <tr style="background:#212529; color:#ffffff;">
+              <th style="border:1px solid #333; padding:8px; text-align:center;">시나리오</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">취득일</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">SSD</th>
+              <th style="border:1px solid #333; padding:8px;">위치</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">환경</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">취득 시작시간</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">취득 종료시간</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">취득 시간</th>
+              <th style="border:1px solid #333; padding:8px;">목표 대상</th>
+              <th style="border:1px solid #333; padding:8px;">비고</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">SPECIAL</th>
+              <th style="border:1px solid #333; padding:8px; text-align:center;">아이</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="12" style="border:1px solid #ddd; padding:12px; text-align:center;">기록이 없습니다.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
 
-  // 기록 수정 시작/취소/저장
-  window.startEditLogItem = function(logId) { editingId = logId; renderHistory(); };
-  window.cancelEditLogItem = function() { editingId = null; renderHistory(); };
-
-  window.saveEditLogItem = function(logId) {
-    var updateData = {
-      scenario: document.getElementById('editScenario_' + logId).value,
-      target: document.getElementById('editTarget_' + logId).value,
-      special: document.getElementById('editSpecial_' + logId).value,
-      child: document.getElementById('editChild_' + logId).value,
-      note: document.getElementById('editNote_' + logId).value
+    var templateParams = {
+      to_email: savedEmail,
+      message_html: htmlContent
     };
 
-    database.ref('logs/' + logId).update(updateData)
-      .then(function() {
-        editingId = null;
-        alert('수정되었습니다.');
-      })
-      .catch(function(err) { alert('수정 실패: ' + err.message); });
+    emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams)
+      .then(() => showToast('이메일 전송이 완료되었습니다!'))
+      .catch((err) => showToast('전송 실패: ' + JSON.stringify(err)));
+  };
+
+  window.updateDayMeta = function(dateKey, carModel) {
+    var sKm = document.getElementById('dayStartKm_' + carModel + '_' + dateKey)?.value;
+    var eKm = document.getElementById('dayEndKm_' + carModel + '_' + dateKey)?.value;
+    var ssdVal = document.getElementById('daySsd_' + carModel + '_' + dateKey)?.value;
+
+    if (typeof database !== 'undefined') {
+      database.ref('logs').once('value', snapshot => {
+        var updates = {};
+        snapshot.forEach(child => {
+          var val = child.val();
+          if (val.dateKey === dateKey && (val.carModel || 'GN7') === carModel) {
+            updates[child.key + '/startKm'] = sKm;
+            updates[child.key + '/endKm'] = eKm;
+            updates[child.key + '/ssd'] = ssdVal;
+          }
+        });
+        database.ref('logs').update(updates)
+          .then(() => showToast('정보가 수정되었습니다.'))
+          .catch(err => showToast('수정 실패: ' + err.message));
+      });
+    }
+  };
+
+  window.updateSingleLog = function(logId) {
+    var targetName = document.getElementById('editTarget_' + logId)?.value.trim();
+    var startTime = document.getElementById('editStart_' + logId)?.value.trim();
+    var endTime = document.getElementById('editEnd_' + logId)?.value.trim();
+
+    if (!targetName) { showToast('목적지를 입력해 주세요.'); return; }
+
+    if (typeof database !== 'undefined') {
+      database.ref('logs/' + logId).update({
+        targetName: targetName,
+        startTime: startTime,
+        endTime: endTime
+      }).then(() => {
+        showToast('개별 기록이 수정되었습니다.');
+      }).catch(err => showToast('수정 실패: ' + err.message));
+    }
+  };
+
+  window.toggleAccordion = function(logId) {
+    var detailEl = document.getElementById('detail_' + logId);
+    var iconEl = document.getElementById('icon_' + logId);
+    if (detailEl.style.display === 'none') {
+      detailEl.style.display = 'block';
+      iconEl.className = 'ti ti-chevron-down';
+    } else {
+      detailEl.style.display = 'none';
+      iconEl.className = 'ti ti-chevron-right';
+    }
+  };
+
+  window.onload = function() {
+    document.getElementById('menuBtnRecord').addEventListener('click', () => showView('record'));
+    document.getElementById('menuBtnHistory').addEventListener('click', () => showView('history'));
+    document.getElementById('menuBtnEmailView').addEventListener('click', () => showView('email'));
+    document.querySelectorAll('.backToMenu').forEach(btn => btn.addEventListener('click', () => showView('main')));
+
+    var btnLX2 = document.getElementById('btnCarLX2');
+    var btnGN7 = document.getElementById('btnCarGN7');
+
+    btnLX2.addEventListener('click', () => {
+      selectedCarModel = 'LX2';
+      btnLX2.style.border = '2px solid #0d6efd';
+      btnLX2.style.background = '#e7f1ff';
+      btnLX2.style.color = '#0d6efd';
+      btnGN7.style.border = '1px solid var(--border-strong)';
+      btnGN7.style.background = 'var(--surface-1)';
+      btnGN7.style.color = 'var(--text-secondary)';
+    });
+
+    btnGN7.addEventListener('click', () => {
+      selectedCarModel = 'GN7';
+      btnGN7.style.border = '2px solid #d97706';
+      btnGN7.style.background = '#fff7ed';
+      btnGN7.style.color = '#d97706';
+      btnLX2.style.border = '1px solid var(--border-strong)';
+      btnLX2.style.background = 'var(--surface-1)';
+      btnLX2.style.color = 'var(--text-secondary)';
+    });
+    btnGN7.click();
+
+    document.getElementById('btnCloseSheetMain').addEventListener('click', () => {
+      document.getElementById('sheet').style.display = 'none';
+    });
+    document.querySelectorAll('.closeSheetAll').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('sheet').style.display = 'none';
+      });
+    });
+
+    document.getElementById('btnSaveEmail').addEventListener('click', () => {
+      var val = document.getElementById('targetEmailInput').value.trim();
+      if (!val) { showToast('이메일을 입력해 주세요.'); return; }
+      localStorage.setItem('savedTargetEmail', val);
+      updateEmailViewUI();
+      showToast('이메일이 저장되었습니다.');
+    });
+
+    document.getElementById('btnDeleteEmail').addEventListener('click', () => {
+      if (confirm('등록된 수신 이메일을 삭제하시겠습니까?')) {
+        localStorage.removeItem('savedTargetEmail');
+        updateEmailViewUI();
+        showToast('삭제되었습니다.');
+      }
+    });
+
+    document.getElementById('btnEndToday').addEventListener('click', () => {
+      var endKmInput = prompt('[' + selectedCarModel + '] 오늘 운행이 종료되었습니다. 최종 도착 킬로수를 입력해 주세요:', '10587');
+      if (endKmInput === null) return;
+
+      var d = new Date();
+      var dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
+
+      if (typeof database !== 'undefined') {
+        database.ref('logs').once('value', snapshot => {
+          var updates = {};
+          snapshot.forEach(child => {
+            var val = child.val();
+            if (val.dateKey === dateKey && (val.carModel || 'GN7') === selectedCarModel) {
+              updates[child.key + '/endKm'] = endKmInput;
+            }
+          });
+          database.ref('logs').update(updates).then(() => {
+            showToast('오늘 측정이 종료되었습니다.');
+            document.getElementById('initialSetupBox').style.display = 'flex';
+            document.getElementById('inputStartKm').value = '';
+            document.getElementById('inputSSD').value = '';
+            document.getElementById('inputFirstTarget').value = '';
+          }).catch(err => showToast('저장 실패: ' + err.message));
+        });
+      }
+    });
+
+    if (typeof kakao !== 'undefined' && kakao.maps) {
+      kakao.maps.load(function() {
+        var geocoder = new kakao.maps.services.Geocoder();
+        map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 3 });
+        currentMarker = new kakao.maps.Marker({ map: map });
+
+        if ("geolocation" in navigator) {
+          navigator.geolocation.watchPosition(function(pos) {
+            currentLat = pos.coords.latitude;
+            currentLng = pos.coords.longitude;
+            var latLng = new kakao.maps.LatLng(currentLat, currentLng);
+            if (currentMarker) currentMarker.setPosition(latLng);
+
+            geocoder.coord2Address(currentLng, currentLat, function(result, status) {
+              if (status === kakao.maps.services.Status.OK) {
+                currentAddressStr = result[0].road_address ? result[0].road_address.address_name : result[0].address.address_name;
+                document.getElementById('currentLocText').innerHTML = '<i class="ti ti-map-pin"></i> 현재 위치: <strong>' + currentAddressStr + '</strong>';
+              }
+            });
+          }, null, { enableHighAccuracy: true });
+        }
+      });
+    }
+
+    if (typeof database !== 'undefined') {
+      database.ref('logs').on('value', snapshot => {
+        var data = snapshot.val();
+        window.globalLogs = [];
+        if (data) {
+          Object.keys(data).forEach(key => window.globalLogs.push(Object.assign({ id: key }, data[key])));
+        }
+        renderHistory();
+      });
+    }
+
+    buildPanel('road');
+    buildPanel('parking');
+    initTagChips('panelRoadInputs');
+    initTagChips('panelParkingInputs');
+
+    document.getElementById('btnMyLocation').addEventListener('click', () => {
+      if (map) map.panTo(new kakao.maps.LatLng(currentLat, currentLng));
+    });
+    document.getElementById('fabBtn').addEventListener('click', () => {
+      var sheet = document.getElementById('sheet');
+      sheet.style.display = (sheet.style.display === 'flex') ? 'none' : 'flex';
+      if (sheet.style.display === 'flex') showView('main');
+    });
   };
 
   function renderHistory() {
-    cleanupOldLogs();
-  var listArea = document.getElementById('historyCards');
-  if (!listArea) return;
+    var listArea = document.getElementById('historyCards');
+    if (!listArea) return;
+    listArea.innerHTML = '';
 
-  // 💡 [원인 해결 1] 웹페이지 전체 스크롤과 목록 상자 내부 스크롤 위치를 모두 저장
-  var pageScrollY = window.scrollY || document.documentElement.scrollTop;
-  var containerScrollTop = listArea.scrollTop;
+    var filteredLogs = window.globalLogs.filter(item => (item.carModel || 'GN7') === currentHistoryCarTab);
 
-  listArea.innerHTML = '';
-
-  if (!globalLogs || globalLogs.length === 0) {
-    listArea.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:13px;">저장된 취득 내역이 없습니다.</div>';
-    return;
-  }
-
-  // 1. 날짜별 그룹화 (timestamp에서 YYYY-MM-DD 추출)
-  var groups = {};
-  globalLogs.slice().reverse().forEach(function(item) {
-    var dateKey = item.acqDate || item.date;
-    
-    if (!dateKey) {
-      if (item.timestamp) {
-        var d = new Date(item.timestamp);
-        dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
-      } else {
-        dateKey = new Date().toISOString().substring(0, 10);
-      }
+    if (filteredLogs.length === 0) {
+      listArea.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">[' + currentHistoryCarTab + '] 팀에 저장된 기록이 없습니다.</div>';
+      return;
     }
 
-    if (!groups[dateKey]) {
-      groups[dateKey] = [];
-    }
-    groups[dateKey].push(item);
-  });
+    var dateGroups = {};
+    filteredLogs.forEach(item => {
+      var dk = item.dateKey || new Date().toISOString().substring(0, 10);
+      if (!dateGroups[dk]) dateGroups[dk] = [];
+      dateGroups[dk].push(item);
+    });
 
-  // 2. 날짜별 그룹 렌더링 (최신 날짜순)
-  Object.keys(groups).sort().reverse().forEach(function(dateKey) {
-    var groupHeader = document.createElement('div');
-    groupHeader.className = 'history-date-header';
-    groupHeader.style.cssText = 'font-weight: bold; font-size: 13px; color: var(--text-accent); background: var(--bg-accent, #eef2f7); padding: 6px 10px; border-radius: 6px; margin: 12px 0 6px 0; display: flex; align-items: center; justify-content: space-between;';
-    groupHeader.innerHTML = `<span>📅 ${dateKey}</span> <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">${groups[dateKey].length}건</span>`;
-    listArea.appendChild(groupHeader);
+    Object.keys(dateGroups).sort().reverse().forEach(dateKey => {
+      var dayLogs = dateGroups[dateKey];
+      var sample = dayLogs[0] || {};
 
-    groups[dateKey].forEach(function(item) {
-      var div = document.createElement('div');
-      div.className = 'history-card';
-      
-      var isRoad = item.type === 'road';
-      var badgeClass = isRoad ? 'badge-type badge-road' : 'badge-type badge-parking';
-      var typeText = isRoad ? '주행 취득건' : '주차 취득건';
-
-      if (typeof editingId !== 'undefined' && editingId === item.id) {
-        div.innerHTML = `
-          <div style="font-size:12px; font-weight:bold; color:#0d6efd; margin-bottom:4px;">✏️ 취득 내역 수정</div>
-          <div class="grid-2">
-            <div class="form-group">
-              <label>시나리오</label>
-              <input type="text" id="editScenario_${item.id}" class="form-control" value="${item.scenario || ''}">
-            </div>
-            <div class="form-group">
-              <label>목표 대상</label>
-              <input type="text" id="editTarget_${item.id}" class="form-control" value="${item.target || ''}">
-            </div>
+      var box = document.createElement('div');
+      box.className = 'day-report-box';
+      box.innerHTML = `
+        <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:6px;">
+          <span>🗺️ ${dateKey} · [${currentHistoryCarTab}]</span>
+          <div>
+            <span style="color:#0d6efd; cursor:pointer; margin-right:10px;" onclick="sendReportByEmail('${dateKey}', '${currentHistoryCarTab}')">보내기</span>
           </div>
-          <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:6px;">
-            <button type="button" class="btn-edit-save" onclick="event.preventDefault(); event.stopPropagation(); saveEditLogItem('${item.id}')">저장</button>
-            <button type="button" class="btn-edit-cancel" onclick="event.preventDefault(); event.stopPropagation(); cancelEditLogItem()">취소</button>
-          </div>
-        `;
-      } else {
-        div.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span class="${badgeClass}">${typeText}</span>
+        </div>
+        <div class="grid-3" style="margin-bottom:8px;">
+          <div class="form-group"><label>출발 km</label><input type="text" id="dayStartKm_${currentHistoryCarTab}_${dateKey}" class="form-control" value="${sample.startKm || ''}"></div>
+          <div class="form-group"><label>도착 km</label><input type="text" id="dayEndKm_${currentHistoryCarTab}_${dateKey}" class="form-control" value="${sample.endKm || ''}"></div>
+          <div class="form-group"><label>SSD</label><input type="text" id="daySsd_${currentHistoryCarTab}_${dateKey}" class="form-control" value="${sample.ssd || ''}"></div>
+        </div>
+        <button type="button" onclick="updateDayMeta('${dateKey}', '${currentHistoryCarTab}')" style="width:100%; height:26px; background:#f1f3f5; border:1px solid #ced4da; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer; margin-bottom:8px;">[${currentHistoryCarTab}] 이 날짜 정보 수정 저장</button>
+      `;
+
+      dayLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      dayLogs.forEach(item => {
+        var card = document.createElement('div');
+        card.className = 'destination-card';
+        var isRoad = item.type === 'road';
+        var subCount = item.subEvents ? item.subEvents.length : 0;
+        var itemDist = item.distance ? item.distance + ' km' : '0.00 km';
+
+        var subEventsHtml = '';
+        if (item.subEvents && item.subEvents.length > 0) {
+          item.subEvents.forEach(ev => {
+            subEventsHtml += `<div style="font-size:12px; color:var(--text-secondary); margin-top:4px; padding-left:10px; border-left:2px solid #0d6efd;">🔹 [${ev.title}] 발생 시간: ${ev.timeStr}</div>`;
+          });
+        } else {
+          subEventsHtml = `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">세부 로그가 없습니다.</div>`;
+        }
+
+        card.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleAccordion('${item.id}')">
             <div>
-              <!-- 💡 [원인 해결 2] event.preventDefault() 및 event.stopPropagation()으로 기본 클릭 동작과 이벤트 튀김 차단 -->
-              <button type="button" class="icon-btn" style="color:#0d6efd;" onclick="event.preventDefault(); event.stopPropagation(); startEditLogItem('${item.id}')" title="수정"><i class="ti ti-edit"></i></button>
-              <button type="button" class="icon-btn" style="color:#dc3545;" onclick="event.preventDefault(); event.stopPropagation(); deleteLogItem('${item.id}')" title="삭제"><i class="ti ti-trash"></i></button>
+              <i id="icon_${item.id}" class="ti ti-chevron-right" style="font-size:14px; margin-right:4px;"></i>
+              <strong>${item.targetName || '목적지'}</strong>
+              <span style="font-size:11px; color:var(--text-muted); margin-left:6px;">이동 거리: <strong>${itemDist}</strong></span>
+            </div>
+            <div>
+              <span class="badge-type ${isRoad ? 'badge-road' : 'badge-parking'}">${isRoad ? '주행' : '주차'}</span>
+              <button class="icon-btn" style="color:#dc3545; margin-left:6px;" onclick="database.ref('logs/${item.id}').remove(); event.stopPropagation();"><i class="ti ti-trash"></i></button>
             </div>
           </div>
-          <div style="font-weight:bold; margin-top:2px;">📍 ${item.location || '위치 정보 없음'}</div>
-          <div style="font-size:12px; color:var(--text-secondary);">
-            시간: ${item.startTime || ''} ~ ${item.endTime || ''} (${item.duration || '00:00'}) | 환경: <strong>${item.env || '-'}</strong>
-          </div>
-          <div style="font-size:12px; color:var(--text-secondary);">
-            시나리오: <strong>${item.scenario || '-'}</strong>
-          </div>
-          <div style="font-size:11px; color:var(--text-muted);">
-            목표: ${item.target || '-'} | SPECIAL: ${item.special || 'x'} | 아이: ${item.child || 'x'} ${item.note ? '| 비고: ' + item.note : ''}
+
+          <div id="detail_${item.id}" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">
+            <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
+              <div class="form-group">
+                <label>목적지 수정</label>
+                <input type="text" id="editTarget_${item.id}" class="form-control" value="${item.targetName || ''}">
+              </div>
+              <div class="grid-2">
+                <div class="form-group"><label>시작 시간</label><input type="text" id="editStart_${item.id}" class="form-control" value="${item.startTime || ''}"></div>
+                <div class="form-group"><label>종료 시간</label><input type="text" id="editEnd_${item.id}" class="form-control" value="${item.endTime || ''}"></div>
+              </div>
+              <button type="button" onclick="updateSingleLog('${item.id}')" style="height:26px; background:#e7f1ff; color:#0d6efd; border:1px solid #b6d4fe; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer; margin-top:2px;">이 개별 기록 수정 저장</button>
+            </div>
+
+            <div style="font-size:12px; color:var(--text-muted);">SSD ${item.ssd || '미입력'} &nbsp;|&nbsp; 이동 거리: <strong>${itemDist}</strong></div>
+            <div style="margin-top:8px; background:#f8f9fa; padding:8px; border-radius:6px;">
+              <div style="font-size:11px; font-weight:bold; color:var(--text-primary); margin-bottom:4px;">📋 세부 로그 및 특이사항</div>
+              ${subEventsHtml}
+            </div>
           </div>
         `;
-      }
-      listArea.appendChild(div);
+        box.appendChild(card);
+      });
+
+      listArea.appendChild(box);
     });
-  });
-
-  // 💡 [원인 해결 3] 화면을 전부 다 재렌더링한 후 저장해둔 두 스크롤 위치를 동시에 복원
-  listArea.scrollTop = containerScrollTop;
-  window.scrollTo(0, pageScrollY);
-}
-
-function cleanupOldLogs() {
-  if (!globalLogs || globalLogs.length === 0) return;
-
-  function getItemDate(item) {
-    var dateKey = item.acqDate || item.date;
-    if (!dateKey) {
-      if (item.timestamp) {
-        var d = new Date(item.timestamp);
-        var m = (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1);
-        var day = (d.getDate() < 10 ? '0' : '') + d.getDate();
-        dateKey = d.getFullYear() + '-' + m + '-' + day;
-      } else {
-        dateKey = new Date().toISOString().substring(0, 10);
-      }
-    }
-    return dateKey;
   }
-
-  var uniqueDates = Array.from(new Set(globalLogs.map(getItemDate))).sort();
-
-  var MAX_DAYS = 20;
-  if (uniqueDates.length > MAX_DAYS) {
-    var keepDates = new Set(uniqueDates.slice(-MAX_DAYS));
-
-    globalLogs = globalLogs.filter(function(item) {
-      return keepDates.has(getItemDate(item));
-    });
-
-    if (typeof saveLogsToStorage === 'function') {
-      saveLogsToStorage();
-    }
-  }
-}
-
-function executeSendEmail() {
-  var rawEmailInput = document.getElementById('targetEmailInput').value.trim();
-  if (!rawEmailInput) { alert('수신할 이메일 주소를 입력해 주세요.'); return; }
-
-  // 쉼표(,), 세미콜론(;), 공백으로 구분해서 다수 이메일 배열 만들기
-  var emailList = rawEmailInput.split(/[,;\s]+/).filter(function(e) { return e.length > 0; });
-  if (emailList.length === 0) { alert('올바른 이메일 주소를 입력해 주세요.'); return; }
-  
-  // 💡 [추가] 데이터 존재 여부 확인 코드
-  if (globalLogs.length === 0) { alert('전송할 측정 데이터가 없습니다.'); return; }
-
-  var ssd = document.getElementById('inputSSD').value || '14';
-  var acqDate = (document.getElementById('inputAcqDate').value || new Date().toISOString().substring(0, 10)).replace(/-/g, '');
-
-  var htmlMsg = `
-    <h3 style="font-family: sans-serif; color: #333;">📋 데이터 수집 리포트</h3>
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-family: sans-serif; font-size: 12px; text-align: center; width: 100%;">
-      <thead>
-        <tr style="background-color: #1f2d3d; color: #ffffff; font-weight: bold;">
-          <th>시나리오</th>
-          <th>취득일</th>
-          <th>SSD</th>
-          <th>위치</th>
-          <th>환경</th>
-          <th>취득 시작시간</th>
-          <th>취득 종료시간</th>
-          <th>취득 시간</th>
-          <th>목표 대상</th>
-          <th>비고</th>
-          <th>SPECIAL</th>
-          <th>아이</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  globalLogs.forEach(function(item) {
-    var specTd = item.special === 'o' ? '<td style="background-color:#e8f4fe; color:#0d6efd; font-weight:bold;">o</td>' : '<td style="background-color:#fde8e8; color:#dc3545; font-weight:bold;">x</td>';
-    var childTd = item.child === 'o' ? '<td style="background-color:#e8f4fe; color:#0d6efd; font-weight:bold;">o</td>' : '<td style="background-color:#fde8e8; color:#dc3545; font-weight:bold;">x</td>';
-
-    // 💡 [수정 포인트] 도로 경로(roadPath)가 있으면 기존 위치 아래에 추가해줍니다.
-    var locDisplay = item.location || '';
-    if (item.roadPath) {
-      locDisplay += `<br><span style="font-size:11px; color:#555; font-weight:normal;">(${item.roadPath})</span>`;
-    }
-
-    htmlMsg += `
-      <tr>
-        <td style="font-weight: bold;">${item.scenario}</td>
-        <td>${acqDate}</td>
-        <td>${ssd}</td>
-        <td style="text-align: left;">${locDisplay}</td>
-        <td>${item.env}</td>
-        <td>${item.startTime}</td>
-        <td>${item.endTime}</td>
-        <td>${item.duration}</td>
-        <td style="text-align: left;">${item.target}</td>
-        <td style="text-align: left;">${item.note || ''}</td>
-        ${specTd}
-        ${childTd}
-      </tr>
-    `;
-  });
-
-  htmlMsg += `</tbody></table>`;
-
-  // EmailJS 파라미터 구조
-  // 입력된 모든 이메일로 각각 발송
-  var sendPromises = emailList.map(function(email) {
-    var templateParams = {
-      to_email: email,
-      report_rows: htmlMsg,
-      message_html: htmlMsg
-    };
-    return emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams);
-  });
-
-  Promise.all(sendPromises)
-    .then(function() {
-      alert('총 ' + emailList.length + '명(' + emailList.join(', ') + ')에게 메일 전송이 완료되었습니다!');
-    })
-    .catch(function(err) {
-      alert('전송 실패: ' + JSON.stringify(err));
-    });
-}
-
-document.getElementById('btnDoSendEmail').addEventListener('click', executeSendEmail);
-  // 1. 저장된 이메일 목록을 화면(드롭다운)에 출력
-function renderSavedEmails() {
-  var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
-  var select = document.getElementById('savedEmailSelect');
-  if (!select) return;
-
-  select.innerHTML = '<option value="">-- 저장된 이메일 목록 --</option>';
-
-  saved.forEach(function(email) {
-    var opt = document.createElement('option');
-    opt.value = email;
-    opt.textContent = email;
-    select.appendChild(opt);
-  });
-}
-
-// 2. 이메일 저장
-document.getElementById('btnSaveEmail').addEventListener('click', function() {
-  var inputVal = document.getElementById('targetEmailInput').value.trim();
-  if (!inputVal) { alert('저장할 이메일을 입력해 주세요.'); return; }
-
-  var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
-  var newEmails = inputVal.split(/[,;\s]+/).filter(Boolean);
-
-  newEmails.forEach(function(email) {
-    if (!saved.includes(email)) {
-      saved.push(email);
-    }
-  });
-
-  localStorage.setItem('savedEmailList', JSON.stringify(saved));
-  renderSavedEmails();
-  alert('이메일이 저장되었습니다.');
-});
-
-// 3. 목록에서 이메일 선택 시 입력창에 자동으로 채우기
-document.getElementById('savedEmailSelect').addEventListener('change', function() {
-  if (this.value) {
-    document.getElementById('targetEmailInput').value = this.value;
-  }
-});
-
-// 4. 선택한 이메일 수정
-document.getElementById('btnEditEmail').addEventListener('click', function() {
-  var select = document.getElementById('savedEmailSelect');
-  var oldEmail = select.value;
-
-  if (!oldEmail) { alert('목록에서 수정할 이메일을 먼저 선택해 주세요.'); return; }
-
-  var newEmail = prompt('이메일 주소를 수정해 주세요:', oldEmail);
-  if (newEmail && newEmail.trim() !== '') {
-    newEmail = newEmail.trim();
-    var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
-    var idx = saved.indexOf(oldEmail);
-    if (idx !== -1) {
-      saved[idx] = newEmail;
-      localStorage.setItem('savedEmailList', JSON.stringify(saved));
-      renderSavedEmails();
-      document.getElementById('targetEmailInput').value = newEmail;
-      alert('수정되었습니다.');
-    }
-  }
-});
-
-// 5. 선택한 이메일 삭제
-document.getElementById('btnDeleteEmail').addEventListener('click', function() {
-  var select = document.getElementById('savedEmailSelect');
-  var target = select.value;
-
-  if (!target) { alert('목록에서 삭제할 이메일을 먼저 선택해 주세요.'); return; }
-
-  if (confirm('\'' + target + '\' 이메일을 삭제하시겠습니까?')) {
-    var saved = JSON.parse(localStorage.getItem('savedEmailList') || '[]');
-    saved = saved.filter(function(e) { return e !== target; });
-
-    localStorage.setItem('savedEmailList', JSON.stringify(saved));
-    renderSavedEmails();
-    document.getElementById('targetEmailInput').value = '';
-    alert('삭제되었습니다.');
-  }
-});
-
-// 페이지 첫 로드 시 저장된 목록 불러오기 실행
-renderSavedEmails();
-
-// =========================================================
-   // 내 위치 이동 버튼 이벤트
-  document.getElementById('btnMyLocation').addEventListener('click', function() {
-    if (currentLat && currentLng) {
-      var moveLatLng = new kakao.maps.LatLng(currentLat, currentLng);
-      map.panTo(moveLatLng);
-    } else {
-      alert('현재 위치 정보를 수신하지 못했습니다.');
-    }
-  });
-
-  // FAB 버튼 클릭 시 지도 영역 재계산 처리
-  document.getElementById('fabBtn').addEventListener('click', function() {
-    var sheet = document.getElementById('sheet');
-    if (sheet.style.display === 'flex') {
-      sheet.style.display = 'none';
-      setTimeout(function() {
-        if (map) {
-          var center = map.getCenter();
-          map.relayout();
-          map.setCenter(center);
-        }
-      }, 50);
-    } else {
-      sheet.style.display = 'flex';
-      showView('main');
-    }
-  });
-};
-// 📍 여기에 아래 코드를 붙여넣으세요!
-    function closeSheet() {
-      var sheet = document.getElementById('sheet');
-      if (sheet && sheet.style.display !== 'none') {
-        sheet.style.display = 'none';
-        if (typeof map !== 'undefined' && map) {
-          setTimeout(function() {
-            var center = map.getCenter();
-            map.relayout();
-            map.setCenter(center);
-          }, 50);
-        }
-      }
-    }
-
-    // 빈 공간 및 지도 클릭 시 메뉴 닫기
-    document.addEventListener('click', function(e) {
-      var sheet = document.getElementById('sheet');
-      var fabBtn = document.getElementById('fabBtn');
-      if (sheet && sheet.style.display === 'flex') {
-        if (!sheet.contains(e.target) && !fabBtn.contains(e.target)) {
-          closeSheet();
-        }
-      }
-    });
-    // 시트 닫기 전용 함수
-function closeSheet() {
-  var sheet = document.getElementById('sheet');
-  if (sheet && sheet.style.display !== 'none') {
-    sheet.style.display = 'none';
-    if (typeof map !== 'undefined' && map) {
-      setTimeout(function() {
-        var center = map.getCenter();
-        map.relayout();
-        map.setCenter(center);
-      }, 50);
-    }
-  }
-}
-
-// 바탕화면 및 지도 터치 시 시트 닫기
-document.addEventListener('click', function(e) {
-  var sheet = document.getElementById('sheet');
-  var fabBtn = document.getElementById('fabBtn');
-  if (sheet && sheet.style.display === 'flex') {
-    if (!sheet.contains(e.target) && fabBtn && !fabBtn.contains(e.target)) {
-      closeSheet();
-    }
-  }
-});
-
-var timerInterval = null;
-
-// 타이머 화면 갱신 (시간 숫만 변경)
-function updateTimerDisplay(seconds) {
-  var hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
-  var min = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-  var sec = String(seconds % 60).padStart(2, '0');
-  
-  var timeStr = '[' + hrs + ':' + min + ':' + sec + ']';
-  var activeTimerText = document.getElementById('overlayTimerVal');
-
-  if (activeTimerText) {
-    activeTimerText.textContent = timeStr;
-  }
-}
-
-// [취득 시작] 누를 때 실행되는 함수
-function startTimer() {
-  var startTime = Date.now();
-  if (timerInterval) clearInterval(timerInterval);
-
-  // 1. 숨겨져 있던 타이머 박스를 화면에 보이게 켜기
-  var timerOverlay = document.getElementById('mapOverlayTimer');
-  if (timerOverlay) {
-    timerOverlay.style.display = 'inline-flex';
-  }
-
-  // 2. 1초마다 타이머 숫자 올리기
-  updateTimerDisplay(0);
-  timerInterval = setInterval(function() {
-    var elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-    updateTimerDisplay(elapsedSeconds);
-  }, 1000);
-}
-
-// [취득 종료] 누를 때 실행되는 함수
-function stopTimer() {
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
-
-  // 타이머 박스를 다시 화면에서 안 보이게 숨기기
-  var timerOverlay = document.getElementById('mapOverlayTimer');
-  if (timerOverlay) {
-    timerOverlay.style.display = 'none';
-  }
-}
-
 </script>
 </body>
 </html>
