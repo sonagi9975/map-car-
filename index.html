@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>주차 탐색 및 기록 관리 앱 (주차장 실시간 타이머 적용)</title>
+  <title>주차 탐색 및 기록 관리 앱 (타임라인 UI 적용)</title>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -263,12 +263,39 @@
       font-size: 13px;
     }
 
+    /* 계층형 타임라인 스타일 */
+    .timeline-container {
+      position: relative;
+      margin-top: 10px;
+      padding-left: 20px;
+      border-left: 2px solid #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .timeline-item {
+      position: relative;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -27px;
+      top: 4px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #0d6efd;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px #e7f1ff;
+    }
+
     .destination-card {
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #fdfdfd;
-      padding: 10px;
-      margin-top: 8px;
+      padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
 
     .badge-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; width: fit-content; }
@@ -277,6 +304,21 @@
 
     .icon-btn { background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 14px; display: inline-flex; align-items: center; }
     .btn-action { height: 40px; border-radius: var(--radius); border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+    /* 리팩토링 추가 스타일 (인라인 CSS 최소화 용도) */
+    .panel-btn-start { flex: 1; height: 40px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: var(--bg-success); color: var(--text-success); font-size: 13px; font-weight: 600; cursor: pointer; }
+    .panel-btn-stop { flex: 1; height: 40px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: var(--bg-danger); color: var(--text-danger); font-size: 13px; font-weight: 600; opacity: 0.5; cursor: pointer; }
+    .history-box-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    .history-send-btn { color: #0d6efd; cursor: pointer; margin-right: 10px; }
+    .history-update-btn { width: 100%; height: 26px; background: #f1f3f5; border: 1px solid #ced4da; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
+    .history-item-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .history-item-dist { font-size: 11px; color: var(--text-muted); margin-left: 6px; }
+    .history-item-detail { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+    .history-sub-btn { height: 26px; background: #e7f1ff; color: #0d6efd; border: 1px solid #b6d4fe; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 2px; }
+    .history-meta-info { font-size: 12px; color: var(--text-muted); }
+    .history-subevents-box { margin-top: 8px; background: #f8f9fa; padding: 8px; border-radius: 6px; }
+    .history-subevent-item { font-size: 12px; color: var(--text-secondary); margin-top: 4px; padding-left: 10px; border-left: 2px solid #0d6efd; }
+    .history-subevent-empty { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -284,7 +326,7 @@
   <div id="toastBanner">기록되었습니다.</div>
 
   <div class="app-header">
-    <span style="font-size: 16px; font-weight: 600; color: var(--text-primary);">주차 탐색 및 기록 관리</span>
+    <span style="font-size: 16px; font-weight: 600; color: var(--text-primary);">주차 탐색 및 기록 관리 [유지보수 적용]</span>
   </div>
 
   <div class="selected-location-bar">
@@ -296,10 +338,10 @@
     <div id="map"></div>
     
     <div id="mapOverlayTimer" class="map-overlay-timer">
-      <div id="totalTimerContainer" style="display: none;">🚗 목적지 주행중: <span id="totalTimerVal" style="color:#4dabf7; font-weight:bold; font-size:14px;">00:00:00</span></div>
+      <div id="totalTimerContainer" style="display: none;">🚗 전체 주행중: <span id="totalTimerVal" style="color:#4dabf7; font-weight:bold; font-size:14px;">00:00:00</span></div>
       
       <div id="roadSegmentTimerContainer" style="display: none;">
-        🔴 구간 기록중: <span id="segmentTimerVal" style="color:#ff6b6b; font-weight:bold; font-size:18px;">00:00:00</span> <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
+        🔴 도로 기록중: <span id="segmentTimerVal" style="color:#ff6b6b; font-weight:bold; font-size:18px;">00:00:00</span> <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
       </div>
 
       <div id="parkingTimerOverlayContainer" style="display: none;">
@@ -391,10 +433,10 @@
 
         <div style="display: flex; gap: 6px; margin-top: 4px;">
           <button type="button" id="btnStartSegment" class="btn-action" style="flex:1; height:36px; background:#198754; color:#fff; font-size:12px;">
-            <i class="ti ti-player-record"></i> 주행기록시작
+            <i class="ti ti-player-record"></i> 도로기록시작
           </button>
           <button type="button" id="btnStopSegment" class="btn-action" style="flex:1; height:36px; background:#dc3545; color:#fff; font-size:12px; opacity:0.5;" disabled>
-            <i class="ti ti-player-stop"></i> 주행기록종료
+            <i class="ti ti-player-stop"></i> 도로기록종료
           </button>
         </div>
 
@@ -489,6 +531,8 @@
 </div>
 
 <script>
+  let toastBannerEl = null;
+
   const DB_NAME = "CarTrackerDB";
   const STORE_NAME = "offline_logs";
 
@@ -520,15 +564,14 @@
   let lastValidCoord = null;
   const MAX_SPEED_THRESHOLD_MPS = 40;
 
-  function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-    var R = 6371000;
-    var dLat = (lat2 - lat1) * (Math.PI / 180);
-    var dLon = (lon2 - lon1) * (Math.PI / 180);
-    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   }
 
   function filterGPSPoint(newCoord) {
@@ -536,13 +579,14 @@
       lastValidCoord = newCoord;
       return newCoord;
     }
-    var distance = getDistanceFromLatLonInMeters(
+    var distanceMeters = calculateDistance(
       lastValidCoord.lat, lastValidCoord.lng, 
       newCoord.lat, newCoord.lng
-    );
+    ) * 1000;
     var timeDiff = (newCoord.timestamp - lastValidCoord.timestamp) / 1000;
+    
     if (timeDiff > 0) {
-      var speed = distance / timeDiff;
+      var speed = distanceMeters / timeDiff;
       if (speed > MAX_SPEED_THRESHOLD_MPS) return null;
     }
     var smoothedLat = (lastValidCoord.lat * 0.4) + (newCoord.lat * 0.6);
@@ -561,14 +605,14 @@
 
       request.onsuccess = async () => {
         const items = request.result;
-        for (const item of items) {
-          if (typeof database !== 'undefined') {
-            await database.ref('logs').push(item.data);
-          }
-          const deleteTx = db.transaction(STORE_NAME, "readwrite");
-          deleteTx.objectStore(STORE_NAME).delete(item.id);
-        }
         if (items.length > 0) {
+          for (const item of items) {
+            if (typeof database !== 'undefined') {
+              await database.ref('logs').push(item.data);
+            }
+          }
+          const clearTx = db.transaction(STORE_NAME, "readwrite");
+          clearTx.objectStore(STORE_NAME).clear();
           showToast('오프라인 동안 저장된 기록이 서버에 자동 동기화되었습니다.');
         }
       };
@@ -625,22 +669,25 @@
   function nowShortTimeStr() { var d = new Date(); return d.getHours() + ':' + fmt(d.getMinutes()); }
 
   function showToast(message) {
-    var toast = document.getElementById('toastBanner');
-    if (!toast) return;
-    toast.textContent = message || '기록되었습니다.';
-    toast.classList.add('show');
-    setTimeout(() => { toast.classList.remove('show'); }, 1500);
+    if (!toastBannerEl) return;
+    toastBannerEl.textContent = message || '기록되었습니다.';
+    toastBannerEl.classList.add('show');
+    setTimeout(() => { toastBannerEl.classList.remove('show'); }, 1500);
   }
 
-  function calculateDistance(lat1, lon1, lat2, lon2) {
-    var R = 6371;
-    var dLat = (lat2 - lat1) * Math.PI / 180;
-    var dLon = (lon2 - lon1) * Math.PI / 180;
-    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+  function formatTimeSec(sec) {
+    var hrs = String(Math.floor(sec / 3600)).padStart(2, '0');
+    var min = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+    var s = String(sec % 60).padStart(2, '0');
+    return hrs + ':' + min + ':' + s;
+  }
+
+  function startTimer(startTime, elementId) {
+    const el = document.getElementById(elementId);
+    return setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      if (el) el.textContent = formatTimeSec(elapsed);
+    }, 1000);
   }
 
   window.showView = function(viewId) {
@@ -685,22 +732,12 @@
     }
   }
 
-  function formatTimeSec(sec) {
-    var hrs = String(Math.floor(sec / 3600)).padStart(2, '0');
-    var min = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
-    var s = String(sec % 60).padStart(2, '0');
-    return hrs + ':' + min + ':' + s;
-  }
-
   function startTotalTimer() {
     totalTripStartTime = Date.now();
     if (totalTripTimerInterval) clearInterval(totalTripTimerInterval);
     document.getElementById('mapOverlayTimer').style.display = 'flex';
     document.getElementById('totalTimerContainer').style.display = 'block';
-    totalTripTimerInterval = setInterval(() => {
-      var elapsed = Math.floor((Date.now() - totalTripStartTime) / 1000);
-      document.getElementById('totalTimerVal').textContent = formatTimeSec(elapsed);
-    }, 1000);
+    totalTripTimerInterval = startTimer(totalTripStartTime, 'totalTimerVal');
   }
 
   function stopTotalTimer() {
@@ -716,10 +753,7 @@
     if (segmentTimerInterval) clearInterval(segmentTimerInterval);
     document.getElementById('mapOverlayTimer').style.display = 'flex';
     document.getElementById('roadSegmentTimerContainer').style.display = 'block';
-    segmentTimerInterval = setInterval(() => {
-      var elapsed = Math.floor((Date.now() - segmentStartTime) / 1000);
-      document.getElementById('segmentTimerVal').textContent = formatTimeSec(elapsed);
-    }, 1000);
+    segmentTimerInterval = startTimer(segmentStartTime, 'segmentTimerVal');
   }
 
   function stopSegmentTimer() {
@@ -778,8 +812,8 @@
     if (!panelBtn) return;
     
     panelBtn.innerHTML =
-      '<button class="startBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-success); color:var(--text-success); font-size:13px; font-weight:600; cursor:pointer;"><i class="ti ti-player-play"></i>' + (isRoad ? '목적지 주행 시작' : '주차장 탐색 시작') + '</button>' +
-      '<button class="stopBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-danger); color:var(--text-danger); font-size:13px; font-weight:600; opacity:0.5; cursor:pointer;" disabled><i class="ti ti-player-pause"></i>측정 완료</button>';
+      '<button class="startBtn panel-btn-start"><i class="ti ti-player-play"></i>' + (isRoad ? '목적지 주행 시작' : '주차장 탐색 시작') + '</button>' +
+      '<button class="stopBtn panel-btn-stop" disabled><i class="ti ti-player-pause"></i>측정 완료</button>';
 
     var startBtn = panelBtn.querySelector('.startBtn');
     var stopBtn = panelBtn.querySelector('.stopBtn');
@@ -851,14 +885,14 @@
           return;
         }
         if (currentRecordingState.segmentActive) {
-          showToast('이미 주행 기록이 진행 중입니다.');
+          showToast('이미 도로 기록이 진행 중입니다.');
           return;
         }
         currentRecordingState.segmentActive = true;
         currentRecordingState.segmentStartStr = nowShortTimeStr();
         startSegmentTimer();
         syncUI();
-        showToast('🔴 주행 기록이 시작되었습니다.');
+        showToast('🔴 도로 기록이 시작되었습니다.');
       });
 
       btnStop.addEventListener('click', () => {
@@ -880,7 +914,6 @@
 
           let timerData = activeParkingTimers[recordTypeName];
 
-          // 진행 중이 아니면 시작
           if (!timerData.startTime) {
             timerData.startTime = Date.now();
             
@@ -888,7 +921,6 @@
             document.getElementById('parkingTimerOverlayContainer').style.display = 'block';
             document.getElementById('parkingTimerLabel').textContent = recordTypeName + ' 중';
 
-            // 버튼 텍스트 변경 및 디자인 강조 (빨간색 계열로 변경하여 종료 버튼 역할 수행)
             if (recordTypeName === '주차기록') {
               btn.innerHTML = '<i class="ti ti-player-stop"></i> 주차기록종료';
               btn.style.background = '#dc3545';
@@ -897,15 +929,10 @@
               btn.style.background = '#dc3545';
             }
 
-            timerData.interval = setInterval(() => {
-              let elapsed = Math.floor((Date.now() - timerData.startTime) / 1000);
-              document.getElementById('parkingOverlayTimerVal').textContent = formatTimeSec(elapsed);
-            }, 1000);
+            timerData.interval = startTimer(timerData.startTime, 'parkingOverlayTimerVal');
 
             showToast('⏱️ ' + recordTypeName + ' 실시간 측정 시작!');
-          } 
-          // 이미 진행 중이면 종료 처리
-          else {
+          } else {
             clearInterval(timerData.interval);
             let durationSec = Math.floor((Date.now() - timerData.startTime) / 1000);
             
@@ -918,7 +945,6 @@
             document.getElementById('mapOverlayTimer').style.display = 'none';
             document.getElementById('parkingOverlayTimerVal').textContent = '00:00:00';
             
-            // 버튼 원래 상태로 복원
             if (recordTypeName === '주차기록') {
               btn.innerHTML = '<i class="ti ti-map-pin"></i> 주차기록';
               btn.style.background = '#198754';
@@ -940,7 +966,7 @@
     stopSegmentTimer();
     syncUI();
     saveSegmentLogToDatabase();
-    showToast('⏹️ 주행 기록이 종료되어 저장되었습니다.');
+    showToast('⏹️ 도로 기록이 종료되어 저장되었습니다.');
   }
 
   function saveParkingSpecificLog(recordTypeName, durationStr) {
@@ -1009,6 +1035,7 @@
       dateKey: dateKey,
       startTime: currentRecordingState.segmentStartStr || currentRecordingState.totalStartStr,
       endTime: currentRecordingState.segmentEndStr || nowShortTimeStr(),
+      duration: (segmentStartTime ? formatTimeSec(Math.floor((Date.now() - segmentStartTime)/1000)) : '00:00:00'),
       distance: distanceKm.toFixed(2),
       subEvents: currentRecordingState.subEvents,
       timestamp: Date.now()
@@ -1043,6 +1070,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    toastBannerEl = document.getElementById('toastBanner');
     var btnViaNext = document.getElementById('btnViaNext');
     if (btnViaNext) {
       btnViaNext.addEventListener('click', function() {
@@ -1072,7 +1100,7 @@
         currentRecordingState.segmentActive = true;
         startSegmentTimer();
         syncUI();
-        showToast('📍 경유지 저장 및 새 구간 기록 자동 시작!');
+        showToast('📍 경유지 저장 및 새 도로 기록 자동 시작!');
       });
     }
 
@@ -1443,11 +1471,12 @@
 
       var box = document.createElement('div');
       box.className = 'day-report-box';
+      
       box.innerHTML = `
-        <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:6px;">
+        <div class="history-box-header">
           <span>🗺️ ${dateKey} · [${currentHistoryCarTab}]</span>
           <div>
-            <span style="color:#0d6efd; cursor:pointer; margin-right:10px;" onclick="sendReportByEmail('${dateKey}', '${currentHistoryCarTab}')">보내기</span>
+            <span class="history-send-btn" onclick="sendReportByEmail('${dateKey}', '${currentHistoryCarTab}')">보내기</span>
           </div>
         </div>
         <div class="grid-3" style="margin-bottom:8px;">
@@ -1455,14 +1484,17 @@
           <div class="form-group"><label>도착 km</label><input type="text" id="dayEndKm_${currentHistoryCarTab}_${dateKey}" class="form-control" value="${sample.endKm || ''}"></div>
           <div class="form-group"><label>SSD</label><input type="text" id="daySsd_${currentHistoryCarTab}_${dateKey}" class="form-control" value="${sample.ssd || ''}"></div>
         </div>
-        <button type="button" onclick="updateDayMeta('${dateKey}', '${currentHistoryCarTab}')" style="width:100%; height:26px; background:#f1f3f5; border:1px solid #ced4da; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer; margin-bottom:8px;">[${currentHistoryCarTab}] 이 날짜 정보 수정 저장</button>
+        <button type="button" class="history-update-btn" onclick="updateDayMeta('${dateKey}', '${currentHistoryCarTab}')">[${currentHistoryCarTab}] 이 날짜 정보 수정 저장</button>
+        <div class="timeline-container" id="timeline_${dateKey}"></div>
       `;
 
       dayLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      var timelineContainer = box.querySelector('#timeline_' + dateKey);
 
       dayLogs.forEach(item => {
-        var card = document.createElement('div');
-        card.className = 'destination-card';
+        var timelineItem = document.createElement('div');
+        timelineItem.className = 'timeline-item';
+        
         var isRoad = item.type === 'road';
         var itemDist = item.distance ? item.distance + ' km' : '0.00 km';
         var durationInfo = item.duration ? '소요 시간: <strong>' + item.duration + '</strong>' : '';
@@ -1470,46 +1502,49 @@
         var subEventsHtml = '';
         if (item.subEvents && item.subEvents.length > 0) {
           item.subEvents.forEach(ev => {
-            subEventsHtml += `<div style="font-size:12px; color:var(--text-secondary); margin-top:4px; padding-left:10px; border-left:2px solid #0d6efd;">🔹 [${ev.title}] 발생 시간: ${ev.timeStr}</div>`;
+            subEventsHtml += `<div class="history-subevent-item">🔹 [${ev.title}] 발생 시간: ${ev.timeStr}</div>`;
           });
         } else {
-          subEventsHtml = `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">세부 로그가 없습니다.</div>`;
+          subEventsHtml = `<div class="history-subevent-empty">세부 로그가 없습니다.</div>`;
         }
 
-        card.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleAccordion('${item.id}')">
-            <div>
-              <i id="icon_${item.id}" class="ti ti-chevron-right" style="font-size:14px; margin-right:4px;"></i>
-              <strong>${item.targetName || '목적지'}</strong>
-              <span style="font-size:11px; color:var(--text-muted); margin-left:6px;">이동 거리: <strong>${itemDist}</strong></span>
-            </div>
-            <div>
-              <span class="badge-type ${isRoad ? 'badge-road' : 'badge-parking'}">${isRoad ? '주행' : '주차'}</span>
-              <button class="icon-btn" style="color:#dc3545; margin-left:6px;" onclick="database.ref('logs/${item.id}').remove(); event.stopPropagation();"><i class="ti ti-trash"></i></button>
-            </div>
-          </div>
-
-          <div id="detail_${item.id}" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">
-            <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
-              <div class="form-group">
-                <label>목적지 수정</label>
-                <input type="text" id="editTarget_${item.id}" class="form-control" value="${item.targetName || ''}">
+        timelineItem.innerHTML = `
+          <div class="timeline-dot"></div>
+          <div class="destination-card">
+            <div class="history-item-header" onclick="toggleAccordion('${item.id}')">
+              <div>
+                <i id="icon_${item.id}" class="ti ti-chevron-right" style="font-size:14px; margin-right:4px;"></i>
+                <strong>${item.targetName || '목적지'}</strong>
+                <span class="history-item-dist">이동 거리: <strong>${itemDist}</strong></span>
               </div>
-              <div class="grid-2">
-                <div class="form-group"><label>시작 시간</label><input type="text" id="editStart_${item.id}" class="form-control" value="${item.startTime || ''}"></div>
-                <div class="form-group"><label>종료 시간</label><input type="text" id="editEnd_${item.id}" class="form-control" value="${item.endTime || ''}"></div>
+              <div>
+                <span class="badge-type ${isRoad ? 'badge-road' : 'badge-parking'}">${isRoad ? '주행' : '주차'}</span>
+                <button class="icon-btn" style="color:#dc3545; margin-left:6px;" onclick="database.ref('logs/${item.id}').remove(); event.stopPropagation();"><i class="ti ti-trash"></i></button>
               </div>
-              <button type="button" onclick="updateSingleLog('${item.id}')" style="height:26px; background:#e7f1ff; color:#0d6efd; border:1px solid #b6d4fe; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer; margin-top:2px;">이 개별 기록 수정 저장</button>
             </div>
 
-            <div style="font-size:12px; color:var(--text-muted);">SSD ${item.ssd || '미입력'} &nbsp;|&nbsp; 이동 거리: <strong>${itemDist}</strong> &nbsp;|&nbsp; ${durationInfo}</div>
-            <div style="margin-top:8px; background:#f8f9fa; padding:8px; border-radius:6px;">
-              <div style="font-size:11px; font-weight:bold; color:var(--text-primary); margin-bottom:4px;">📋 세부 로그 및 특이사항</div>
-              ${subEventsHtml}
+            <div id="detail_${item.id}" class="history-item-detail">
+              <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
+                <div class="form-group">
+                  <label>목적지 수정</label>
+                  <input type="text" id="editTarget_${item.id}" class="form-control" value="${item.targetName || ''}">
+                </div>
+                <div class="grid-2">
+                  <div class="form-group"><label>시작 시간</label><input type="text" id="editStart_${item.id}" class="form-control" value="${item.startTime || ''}"></div>
+                  <div class="form-group"><label>종료 시간</label><input type="text" id="editEnd_${item.id}" class="form-control" value="${item.endTime || ''}"></div>
+                </div>
+                <button type="button" class="history-sub-btn" onclick="updateSingleLog('${item.id}')">이 개별 기록 수정 저장</button>
+              </div>
+
+              <div class="history-meta-info">SSD ${item.ssd || '미입력'} &nbsp;|&nbsp; 이동 거리: <strong>${itemDist}</strong> &nbsp;|&nbsp; ${durationInfo}</div>
+              <div class="history-subevents-box">
+                <div style="font-size:11px; font-weight:bold; color:var(--text-primary); margin-bottom:4px;">📋 세부 로그 및 특이사항</div>
+                ${subEventsHtml}
+              </div>
             </div>
           </div>
         `;
-        box.appendChild(card);
+        timelineContainer.appendChild(timelineItem);
       });
 
       listArea.appendChild(box);
