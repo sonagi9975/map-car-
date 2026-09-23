@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>주차 탐색 및 기록 관리 앱</title>
+  <title>주차 탐색 및 기록 관리 앱 (주차장 실시간 타이머 적용)</title>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -64,7 +64,6 @@
       position: relative;
     }
 
-    /* 상단 토스트 알림 배너 스타일 */
     #toastBanner {
       position: absolute;
       top: -50px;
@@ -81,9 +80,7 @@
       transition: top 0.3s ease-in-out;
       pointer-events: none;
     }
-    #toastBanner.show {
-      top: 16px;
-    }
+    #toastBanner.show { top: 16px; }
 
     .app-header {
       padding: 12px 16px;
@@ -122,18 +119,27 @@
       z-index: 999;
       background: rgba(0, 0, 0, 0.85);
       backdrop-filter: blur(4px);
-      padding: 8px 14px;
-      border-radius: 20px;
+      padding: 12px 16px;
+      border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.25);
       display: none;
-      align-items: center;
-      gap: 8px;
+      flex-direction: column;
+      gap: 6px;
       font-family: monospace, sans-serif;
-      font-size: 14px;
-      font-weight: bold;
-      color: #ff3b30;
-      border: 1px solid rgba(255, 59, 48, 0.4);
+      font-size: 16px;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       pointer-events: none;
+    }
+    
+    .map-overlay-timer .timer-title {
+      font-size: 14px;
+      color: #adb5bd;
+    }
+
+    .map-overlay-timer .timer-value {
+      font-size: 18px;
+      font-weight: bold;
     }
 
     .fab-container {
@@ -233,8 +239,8 @@
     .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
-    .tags-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
-    .tag-chip { padding: 6px 4px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface-1); font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; text-align: center; }
+    .tags-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 4px; }
+    .tag-chip { padding: 6px 2px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface-1); font-size: 11px; font-weight: 600; color: var(--text-secondary); cursor: pointer; text-align: center; }
     .tag-chip.active { border-color: #0d6efd; background: #e7f1ff; color: #0d6efd; }
 
     .active-recording-inputs {
@@ -275,7 +281,6 @@
 </head>
 <body>
 <div class="app-container">
-  <!-- 상단 토스트 알림 배너 -->
   <div id="toastBanner">기록되었습니다.</div>
 
   <div class="app-header">
@@ -284,15 +289,22 @@
 
   <div class="selected-location-bar">
     <span id="currentLocText"><i class="ti ti-map-pin" style="margin-right: 4px;"></i>현재 위치 수신 중...</span>
+    <span id="offlineBadge" style="font-size: 11px; background:#fff3cd; color:#856404; padding:2px 6px; border-radius:4px; display:none;">⚠️ 오프라인 (임시저장중)</span>
   </div>
 
   <div class="map-wrapper">
     <div id="map"></div>
     
     <div id="mapOverlayTimer" class="map-overlay-timer">
-      <span style="color: #ff4d4d; font-weight: bold;">🔴 REC</span>
-      <span id="overlayTimerVal">[00:00:00]</span>
-      <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
+      <div id="totalTimerContainer" style="display: none;">🚗 목적지 주행중: <span id="totalTimerVal" style="color:#4dabf7; font-weight:bold; font-size:14px;">00:00:00</span></div>
+      
+      <div id="roadSegmentTimerContainer" style="display: none;">
+        🔴 구간 기록중: <span id="segmentTimerVal" style="color:#ff6b6b; font-weight:bold; font-size:18px;">00:00:00</span> <span id="pathPointCount" style="color: #aaa; font-size: 10px;">(0pts)</span>
+      </div>
+
+      <div id="parkingTimerOverlayContainer" style="display: none;">
+        🅿️ <span id="parkingTimerLabel">주차 기록중</span>: <span id="parkingOverlayTimerVal" style="color:#51cf66; font-weight:bold; font-size:18px;">00:00:00</span>
+      </div>
     </div>
 
     <div class="fab-container">
@@ -305,9 +317,7 @@
     </div>
   </div>
 
-  <!-- 하단 바텀시트 패널 -->
   <div id="sheet">
-    <!-- 1. 메인 세로 메뉴 -->
     <div id="menuMain" class="vertical-menu">
       <div class="sheet-header-bar">
         <span style="font-weight: bold; font-size: 15px; color: var(--text-primary);">메뉴</span>
@@ -327,7 +337,6 @@
       </button>
     </div>
 
-    <!-- 2. 세부 화면: 기록 측정 -->
     <div id="viewRecord" style="display: none; flex-direction: column; gap: 14px;">
       <div class="sub-view-header">
         <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
@@ -335,14 +344,19 @@
         <button class="close-sheet-btn closeSheetAll" aria-label="닫기"><i class="ti ti-x"></i></button>
       </div>
 
-      <div id="initialSetupBox" style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="form-group">
-          <label>차종 선택</label>
-          <div style="display: flex; gap: 10px;">
-            <button type="button" id="btnCarLX2" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-secondary); font-weight: bold; cursor: pointer;">🔵 LX2</button>
-            <button type="button" id="btnCarGN7" style="flex: 1; padding: 10px; border-radius: 8px; border: 2px solid #d97706; background: #fff7ed; color: #d97706; font-weight: bold; cursor: pointer;">🟠 GN7</button>
-          </div>
+      <div class="form-group">
+        <label>내 팀 / 차종 선택 (실시간 공유 상태)</label>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="btnCarLX2" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-secondary); font-weight: bold; cursor: pointer;">🔵 LX2 <span id="statusLX2Tag" style="font-size:10px; color:#868e96;">(대기중)</span></button>
+          <button type="button" id="btnCarGN7" style="flex: 1; padding: 10px; border-radius: 8px; border: 2px solid #d97706; background: #fff7ed; color: #d97706; font-weight: bold; cursor: pointer;">🟠 GN7 <span id="statusGN7Tag" style="font-size:10px; color:#d97706;">(대기중)</span></button>
         </div>
+      </div>
+
+      <div id="teamAlertBanner" style="display:none; padding:8px 12px; background:#fff3cd; border:1px solid #ffeeba; border-radius:var(--radius); font-size:12px; color:#856404; font-weight:bold;">
+        ⚠️ 안내: <span id="teamAlertText">다른 사용자가 이 차종을 측정 중입니다.</span>
+      </div>
+
+      <div id="initialSetupBox" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="form-group">
           <label>출발 키로수 (필수 입력)</label>
           <input type="number" id="inputStartKm" class="form-control" placeholder="예: 10405" value="">
@@ -352,7 +366,7 @@
           <input type="text" id="inputSSD" class="form-control" placeholder="SSD 입력" value="">
         </div>
         <div class="form-group">
-          <label>첫 목적지 (선택)</label>
+          <label>목적지 입력 (선택)</label>
           <input type="text" id="inputFirstTarget" class="form-control" placeholder="목적지 입력" value="">
         </div>
       </div>
@@ -368,36 +382,71 @@
       </div>
 
       <div id="panelRoadInputs" class="active-recording-inputs" style="display: none;">
-        <span style="font-size: 12px; font-weight: bold; color: #0d6efd;">📝 도로 주행 측정 중 (특이사항 연속 터치 가능)</span>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12px; font-weight: bold; color: #0d6efd;">📝 주행 중 (목적지 이동 타이머 동작중)</span>
+          <button type="button" id="btnViaNext" class="btn-action" style="height: 28px; padding: 0 10px; background: #ffc107; color: #212529; font-size: 11px;">
+            <i class="ti ti-location"></i> 경유 (다음 목적지로)
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 6px; margin-top: 4px;">
+          <button type="button" id="btnStartSegment" class="btn-action" style="flex:1; height:36px; background:#198754; color:#fff; font-size:12px;">
+            <i class="ti ti-player-record"></i> 주행기록시작
+          </button>
+          <button type="button" id="btnStopSegment" class="btn-action" style="flex:1; height:36px; background:#dc3545; color:#fff; font-size:12px; opacity:0.5;" disabled>
+            <i class="ti ti-player-stop"></i> 주행기록종료
+          </button>
+        </div>
+
+        <div class="form-group" style="margin-top: 4px;">
+          <label>다음 목적지 이름</label>
+          <input type="text" id="inputNextTarget" class="form-control" placeholder="다음 목적지 입력">
+        </div>
         <div class="form-group">
+          <label>특이사항 연속 터치</label>
           <div class="tags-grid" id="roadTagsGrid">
             <div class="tag-chip" data-val="특수차">특수차</div>
             <div class="tag-chip" data-val="아이">아이</div>
             <div class="tag-chip" data-val="볼라드">볼라드</div>
             <div class="tag-chip" data-val="턱">턱</div>
+            <div class="tag-chip" data-val="보행자">보행자</div>
           </div>
         </div>
       </div>
 
       <div id="panelParkingInputs" class="active-recording-inputs" style="display: none; background: #f0fff4; border-color: #198754;">
-        <span style="font-size: 12px; font-weight: bold; color: #198754;">📝 주차장 탐색 및 주차 측정 중 (특이사항 연속 터치 가능)</span>
-        <div class="form-group">
+        <span style="font-size: 12px; font-weight: bold; color: #198754;">📝 주차장 탐색 중</span>
+        
+        <div style="display: flex; gap: 6px; margin-top: 4px;">
+          <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+            <button type="button" id="btnParkingRecord" style="height:36px; background:#198754; color:#fff; font-size:12px; border:none; border-radius:var(--radius); font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+              <i class="ti ti-map-pin"></i> 주차기록
+            </button>
+          </div>
+
+          <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+            <button type="button" id="btnParkingAreaRecord" style="height:36px; background:#0d6efd; color:#fff; font-size:12px; border:none; border-radius:var(--radius); font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+              <i class="ti ti-building"></i> 주차장기록
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 4px;">
           <div class="tags-grid" id="parkingTagsGrid">
             <div class="tag-chip" data-val="특수차">특수차</div>
             <div class="tag-chip" data-val="아이">아이</div>
             <div class="tag-chip" data-val="볼라드">볼라드</div>
             <div class="tag-chip" data-val="턱">턱</div>
+            <div class="tag-chip" data-val="보행자">보행자</div>
           </div>
         </div>
       </div>
 
-      <!-- 오늘 측정 종료 버튼 -->
       <button type="button" id="btnEndToday" class="btn-action" style="background: #6c757d; color: #fff; margin-top: 10px;">
         <i class="ti ti-power"></i> 오늘 측정 종료 (도착 km 입력 및 리셋)
       </button>
     </div>
 
-    <!-- 3. 세부 화면: 지난 기록 -->
     <div id="viewHistory" style="display: none; flex-direction: column; gap: 10px;">
       <div class="sub-view-header">
         <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
@@ -405,7 +454,6 @@
         <button class="close-sheet-btn closeSheetAll" aria-label="닫기"><i class="ti ti-x"></i></button>
       </div>
 
-      <!-- 차종별 팀 구분 탭 -->
       <div style="display: flex; gap: 8px; margin-bottom: 4px;">
         <button type="button" id="tabCarLX2" onclick="switchCarTab('LX2')" style="flex:1; padding:8px; border-radius:6px; border:1px solid var(--border-strong); background:#e7f1ff; color:#0d6efd; font-weight:bold; font-size:13px; cursor:pointer;">🔵 LX2 팀 기록</button>
         <button type="button" id="tabCarGN7" onclick="switchCarTab('GN7')" style="flex:1; padding:8px; border-radius:6px; border:1px solid var(--border-strong); background:#fff; color:var(--text-secondary); font-weight:bold; font-size:13px; cursor:pointer;">🟠 GN7 팀 기록</button>
@@ -414,7 +462,6 @@
       <div id="historyCards"></div>
     </div>
 
-    <!-- 4. 세부 화면: 이메일 설정 탭 -->
     <div id="viewEmail" style="display: none; flex-direction: column; gap: 12px;">
       <div class="sub-view-header">
         <button class="back-btn backToMenu"><i class="ti ti-arrow-left"></i></button>
@@ -436,13 +483,98 @@
           <input type="email" id="targetEmailInput" class="form-control" placeholder="example@email.com" style="flex: 1;">
           <button type="button" id="btnSaveEmail" class="btn-action" style="background: #0d6efd; color:#fff; border: none; padding: 0 14px;">저장</button>
         </div>
-        <span id="emailSaveMsg" style="font-size: 11px; color: var(--text-success); display: none;">✓ 저장되었습니다.</span>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+  const DB_NAME = "CarTrackerDB";
+  const STORE_NAME = "offline_logs";
+
+  function openDatabase() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+        }
+      };
+    });
+  }
+
+  async function saveOfflineData(data) {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      store.add({ data, timestamp: Date.now() });
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  let lastValidCoord = null;
+  const MAX_SPEED_THRESHOLD_MPS = 40;
+
+  function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * (Math.PI / 180);
+    var dLon = (lon2 - lon1) * (Math.PI / 180);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  function filterGPSPoint(newCoord) {
+    if (!lastValidCoord) {
+      lastValidCoord = newCoord;
+      return newCoord;
+    }
+    var distance = getDistanceFromLatLonInMeters(
+      lastValidCoord.lat, lastValidCoord.lng, 
+      newCoord.lat, newCoord.lng
+    );
+    var timeDiff = (newCoord.timestamp - lastValidCoord.timestamp) / 1000;
+    if (timeDiff > 0) {
+      var speed = distance / timeDiff;
+      if (speed > MAX_SPEED_THRESHOLD_MPS) return null;
+    }
+    var smoothedLat = (lastValidCoord.lat * 0.4) + (newCoord.lat * 0.6);
+    var smoothedLng = (lastValidCoord.lng * 0.4) + (newCoord.lng * 0.6);
+    lastValidCoord = { lat: smoothedLat, lng: smoothedLng, timestamp: newCoord.timestamp };
+    return lastValidCoord;
+  }
+
+  window.addEventListener('online', async () => {
+    document.getElementById('offlineBadge').style.display = 'none';
+    try {
+      const db = await openDatabase();
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.getAll();
+
+      request.onsuccess = async () => {
+        const items = request.result;
+        for (const item of items) {
+          if (typeof database !== 'undefined') {
+            await database.ref('logs').push(item.data);
+          }
+          const deleteTx = db.transaction(STORE_NAME, "readwrite");
+          deleteTx.objectStore(STORE_NAME).delete(item.id);
+        }
+        if (items.length > 0) {
+          showToast('오프라인 동안 저장된 기록이 서버에 자동 동기화되었습니다.');
+        }
+      };
+    } catch(e) { console.error(e); }
+  });
+
   const firebaseConfig = {
     apiKey: "AIzaSyDJT0EYC80hDWgGX_aTPs6dEtTw1IB3XII",
     authDomain: "mapcode-c6063.firebaseapp.com",
@@ -458,19 +590,32 @@
 
   let map = null;
   let currentMarker = null;
+  let currentPolyline = null;
   let currentLat = 37.5665;
   let currentLng = 126.9780;
   let currentAddressStr = '위치 수신 중...';
   let selectedCarModel = 'GN7';
   let currentHistoryCarTab = 'LX2';
-  let timerInterval = null;
   window.globalLogs = [];
+  let liveTeamStatuses = { GN7: null, LX2: null };
+
+  let totalTripTimerInterval = null;
+  let segmentTimerInterval = null;
+  let totalTripStartTime = null;
+  let segmentStartTime = null;
+
+  let activeParkingTimers = {
+    '주차기록': { startTime: null, interval: null },
+    '주차장기록': { startTime: null, interval: null }
+  };
 
   let currentRecordingState = {
-    active: false,
+    active: false,          
+    segmentActive: false,   
     type: null,
-    startTime: null,
-    startStr: '',
+    totalStartStr: '',
+    segmentStartStr: '',
+    segmentEndStr: '',
     startCoords: null,
     pathCoords: [],
     subEvents: []
@@ -484,9 +629,7 @@
     if (!toast) return;
     toast.textContent = message || '기록되었습니다.';
     toast.classList.add('show');
-    setTimeout(() => {
-      toast.classList.remove('show');
-    }, 1500);
+    setTimeout(() => { toast.classList.remove('show'); }, 1500);
   }
 
   function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -518,15 +661,11 @@
     var btnGN7 = document.getElementById('tabCarGN7');
 
     if (carName === 'LX2') {
-      btnLX2.style.background = '#e7f1ff';
-      btnLX2.style.color = '#0d6efd';
-      btnGN7.style.background = '#fff';
-      btnGN7.style.color = 'var(--text-secondary)';
+      btnLX2.style.background = '#e7f1ff'; btnLX2.style.color = '#0d6efd';
+      btnGN7.style.background = '#fff'; btnGN7.style.color = 'var(--text-secondary)';
     } else {
-      btnGN7.style.background = '#fff7ed';
-      btnGN7.style.color = '#d97706';
-      btnLX2.style.background = '#fff';
-      btnLX2.style.color = 'var(--text-secondary)';
+      btnGN7.style.background = '#fff7ed'; btnGN7.style.color = '#d97706';
+      btnLX2.style.background = '#fff'; btnLX2.style.color = 'var(--text-secondary)';
     }
     renderHistory();
   };
@@ -538,64 +677,99 @@
     var inputEl = document.getElementById('targetEmailInput');
 
     if (savedEmail) {
-      displayEl.textContent = savedEmail;
-      displayEl.style.color = 'var(--text-primary)';
-      deleteBtn.style.display = 'inline-flex';
-      inputEl.value = savedEmail;
+      displayEl.textContent = savedEmail; displayEl.style.color = 'var(--text-primary)';
+      deleteBtn.style.display = 'inline-flex'; inputEl.value = savedEmail;
     } else {
-      displayEl.textContent = '등록된 이메일이 없습니다.';
-      displayEl.style.color = 'var(--text-muted)';
-      deleteBtn.style.display = 'none';
-      inputEl.value = '';
+      displayEl.textContent = '등록된 이메일이 없습니다.'; displayEl.style.color = 'var(--text-muted)';
+      deleteBtn.style.display = 'none'; inputEl.value = '';
     }
   }
 
-  function updateTimerDisplay(seconds) {
-    var hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
-    var min = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-    var sec = String(seconds % 60).padStart(2, '0');
-    var timerEl = document.getElementById('overlayTimerVal');
-    if (timerEl) timerEl.textContent = '[' + hrs + ':' + min + ':' + sec + ']';
+  function formatTimeSec(sec) {
+    var hrs = String(Math.floor(sec / 3600)).padStart(2, '0');
+    var min = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+    var s = String(sec % 60).padStart(2, '0');
+    return hrs + ':' + min + ':' + s;
   }
 
-  function startTimer() {
-    var startTime = Date.now();
-    if (timerInterval) clearInterval(timerInterval);
-    document.getElementById('mapOverlayTimer').style.display = 'inline-flex';
-    updateTimerDisplay(0);
-    timerInterval = setInterval(() => {
-      updateTimerDisplay(Math.floor((Date.now() - startTime) / 1000));
+  function startTotalTimer() {
+    totalTripStartTime = Date.now();
+    if (totalTripTimerInterval) clearInterval(totalTripTimerInterval);
+    document.getElementById('mapOverlayTimer').style.display = 'flex';
+    document.getElementById('totalTimerContainer').style.display = 'block';
+    totalTripTimerInterval = setInterval(() => {
+      var elapsed = Math.floor((Date.now() - totalTripStartTime) / 1000);
+      document.getElementById('totalTimerVal').textContent = formatTimeSec(elapsed);
     }, 1000);
   }
 
-  function stopTimer() {
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-    document.getElementById('mapOverlayTimer').style.display = 'none';
+  function stopTotalTimer() {
+    if (totalTripTimerInterval) { clearInterval(totalTripTimerInterval); totalTripTimerInterval = null; }
+    document.getElementById('totalTimerContainer').style.display = 'none';
+    if (!currentRecordingState.segmentActive) {
+      document.getElementById('mapOverlayTimer').style.display = 'none';
+    }
+  }
+
+  function startSegmentTimer() {
+    segmentStartTime = Date.now();
+    if (segmentTimerInterval) clearInterval(segmentTimerInterval);
+    document.getElementById('mapOverlayTimer').style.display = 'flex';
+    document.getElementById('roadSegmentTimerContainer').style.display = 'block';
+    segmentTimerInterval = setInterval(() => {
+      var elapsed = Math.floor((Date.now() - segmentStartTime) / 1000);
+      document.getElementById('segmentTimerVal').textContent = formatTimeSec(elapsed);
+    }, 1000);
+  }
+
+  function stopSegmentTimer() {
+    if (segmentTimerInterval) { clearInterval(segmentTimerInterval); segmentTimerInterval = null; }
+    document.getElementById('roadSegmentTimerContainer').style.display = 'none';
+    document.getElementById('segmentTimerVal').textContent = "00:00:00";
   }
 
   function initTagChips(containerId) {
     document.querySelectorAll('#' + containerId + ' .tag-chip').forEach(chip => {
       chip.addEventListener('click', function() {
-        if (!currentRecordingState.active) {
-          showToast("먼저 측정을 시작해 주세요!");
-          return;
-        }
         var val = this.getAttribute('data-val');
         var timeStr = nowShortTimeStr();
 
-        currentRecordingState.subEvents.push({
-          type: 'tag',
-          title: val,
-          timeStr: timeStr
-        });
+        currentRecordingState.subEvents.push({ type: 'tag', title: val, timeStr: timeStr });
+        saveOfflineBackup();
 
         showToast('✨ ' + val + ' (' + timeStr + ') 기록됨!');
-        
-        this.style.background = '#0d6efd';
-        this.style.color = '#fff';
+        this.style.background = '#0d6efd'; this.style.color = '#fff';
         setTimeout(() => { this.style.background = ''; this.style.color = ''; }, 200);
       });
     });
+  }
+
+  function saveOfflineBackup() {
+    if (currentRecordingState.active) {
+      localStorage.setItem('activeRecordingBackup', JSON.stringify(currentRecordingState));
+    }
+  }
+
+  function checkOfflineBackup() {
+    var backup = localStorage.getItem('activeRecordingBackup');
+    if (backup) {
+      try {
+        var parsed = JSON.parse(backup);
+        if (parsed && parsed.active) {
+          if (confirm('이전에 임시 저장된 측정 데이터가 있습니다. 복구하시겠습니까?')) {
+            currentRecordingState = parsed;
+            selectedCarModel = parsed.carModel || 'GN7';
+            if (selectedCarModel === 'GN7') document.getElementById('btnCarGN7').click();
+            else document.getElementById('btnCarLX2').click();
+            if (parsed.type === 'road') startTotalTimer();
+            syncUI();
+            showToast('임시 저장된 측정 데이터가 복구되었습니다.');
+          } else {
+            localStorage.removeItem('activeRecordingBackup');
+          }
+        }
+      } catch(e) { localStorage.removeItem('activeRecordingBackup'); }
+    }
   }
 
   function buildPanel(cat) {
@@ -604,8 +778,8 @@
     if (!panelBtn) return;
     
     panelBtn.innerHTML =
-      '<button class="startBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-success); color:var(--text-success); font-size:13px; font-weight:600; cursor:pointer;"><i class="ti ti-player-play"></i>' + (isRoad ? '도로 주행 시작' : '주차장 기록 시작') + '</button>' +
-      '<button class="stopBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-danger); color:var(--text-danger); font-size:13px; font-weight:600; opacity:0.5; cursor:pointer;" disabled><i class="ti ti-player-pause"></i>기록 정지</button>';
+      '<button class="startBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-success); color:var(--text-success); font-size:13px; font-weight:600; cursor:pointer;"><i class="ti ti-player-play"></i>' + (isRoad ? '목적지 주행 시작' : '주차장 탐색 시작') + '</button>' +
+      '<button class="stopBtn" style="flex:1; height:40px; border-radius:var(--radius); border:0.5px solid var(--border-strong); background:var(--bg-danger); color:var(--text-danger); font-size:13px; font-weight:600; opacity:0.5; cursor:pointer;" disabled><i class="ti ti-player-pause"></i>측정 완료</button>';
 
     var startBtn = panelBtn.querySelector('.startBtn');
     var stopBtn = panelBtn.querySelector('.stopBtn');
@@ -618,9 +792,12 @@
         return;
       }
 
-      if (currentRecordingState.active) { showToast("이미 다른 측정이 진행 중입니다."); return; }
+      if (currentRecordingState.active) { showToast("이미 다른 측정 진행 중입니다."); return; }
       document.getElementById('initialSetupBox').style.display = 'none';
-      startTimer();
+      
+      if (isRoad) {
+        startTotalTimer();
+      }
 
       var startLatLng = new kakao.maps.LatLng(currentLat, currentLng);
       if (map) map.panTo(startLatLng);
@@ -628,59 +805,283 @@
       var startT = nowShortTimeStr();
       currentRecordingState = {
         active: true,
+        segmentActive: isRoad ? false : true,
+        carModel: selectedCarModel,
         type: cat,
-        startTime: Date.now(),
-        startStr: startT,
+        totalStartStr: startT,
+        segmentStartStr: isRoad ? '' : startT,
+        segmentEndStr: '',
         startCoords: { lat: currentLat, lng: currentLng },
+        pathCoords: [[currentLat, currentLng]],
         subEvents: []
       };
+
+      saveOfflineBackup();
+
+      if (typeof database !== 'undefined') {
+        database.ref('liveStatus/' + selectedCarModel).set({
+          active: true,
+          type: cat,
+          startTime: startT,
+          startKm: startKmVal
+        });
+      }
+
       syncUI();
-      showToast('측정이 시작되었습니다.');
+      showToast('[' + selectedCarModel + '] ' + (isRoad ? '목적지 주행' : '주차장 탐색') + '이 시작되었습니다.');
     });
 
     stopBtn.addEventListener('click', function() {
       if (!currentRecordingState.active || currentRecordingState.type !== cat) return;
-      stopTimer();
-
-      var endT = nowShortTimeStr();
-      var d = new Date();
-      var dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
-
-      var distanceKm = 0;
-      if (currentRecordingState.startCoords) {
-        distanceKm = calculateDistance(
-          currentRecordingState.startCoords.lat,
-          currentRecordingState.startCoords.lng,
-          currentLat,
-          currentLng
-        );
+      if (isRoad && currentRecordingState.segmentActive) {
+        triggerStopSegment();
       }
-
-      var logData = {
-        carModel: selectedCarModel,
-        startKm: document.getElementById('inputStartKm')?.value || '',
-        endKm: '',
-        ssd: document.getElementById('inputSSD')?.value || '',
-        targetName: document.getElementById('inputFirstTarget')?.value || currentAddressStr,
-        type: cat,
-        dateKey: dateKey,
-        startTime: currentRecordingState.startStr,
-        endTime: endT,
-        distance: distanceKm.toFixed(2),
-        subEvents: currentRecordingState.subEvents,
-        timestamp: Date.now()
-      };
-
-      if (typeof database !== 'undefined') database.ref('logs').push(logData);
-
-      currentRecordingState.active = false;
-      syncUI();
-      showToast('[' + selectedCarModel + '] 기록 저장 완료');
+      stopTripAndSave(cat);
     });
   }
 
+  function setupSegmentControlListeners() {
+    var btnStart = document.getElementById('btnStartSegment');
+    var btnStop = document.getElementById('btnStopSegment');
+
+    if (btnStart && btnStop) {
+      btnStart.addEventListener('click', () => {
+        if (!currentRecordingState.active) {
+          showToast('먼저 [목적지 주행 시작]을 눌러주세요.');
+          return;
+        }
+        if (currentRecordingState.segmentActive) {
+          showToast('이미 주행 기록이 진행 중입니다.');
+          return;
+        }
+        currentRecordingState.segmentActive = true;
+        currentRecordingState.segmentStartStr = nowShortTimeStr();
+        startSegmentTimer();
+        syncUI();
+        showToast('🔴 주행 기록이 시작되었습니다.');
+      });
+
+      btnStop.addEventListener('click', () => {
+        if (!currentRecordingState.segmentActive) return;
+        triggerStopSegment();
+      });
+    }
+
+    ['주차기록', '주차장기록'].forEach(recordTypeName => {
+      let btnId = recordTypeName === '주차기록' ? 'btnParkingRecord' : 'btnParkingAreaRecord';
+      let btn = document.getElementById(btnId);
+
+      if (btn) {
+        btn.addEventListener('click', () => {
+          if (!currentRecordingState.active || currentRecordingState.type !== 'parking') {
+            showToast('주차장 탐색을 먼저 시작해 주세요.');
+            return;
+          }
+
+          let timerData = activeParkingTimers[recordTypeName];
+
+          // 진행 중이 아니면 시작
+          if (!timerData.startTime) {
+            timerData.startTime = Date.now();
+            
+            document.getElementById('mapOverlayTimer').style.display = 'flex';
+            document.getElementById('parkingTimerOverlayContainer').style.display = 'block';
+            document.getElementById('parkingTimerLabel').textContent = recordTypeName + ' 중';
+
+            // 버튼 텍스트 변경 및 디자인 강조 (빨간색 계열로 변경하여 종료 버튼 역할 수행)
+            if (recordTypeName === '주차기록') {
+              btn.innerHTML = '<i class="ti ti-player-stop"></i> 주차기록종료';
+              btn.style.background = '#dc3545';
+            } else {
+              btn.innerHTML = '<i class="ti ti-player-stop"></i> 주차장기록종료';
+              btn.style.background = '#dc3545';
+            }
+
+            timerData.interval = setInterval(() => {
+              let elapsed = Math.floor((Date.now() - timerData.startTime) / 1000);
+              document.getElementById('parkingOverlayTimerVal').textContent = formatTimeSec(elapsed);
+            }, 1000);
+
+            showToast('⏱️ ' + recordTypeName + ' 실시간 측정 시작!');
+          } 
+          // 이미 진행 중이면 종료 처리
+          else {
+            clearInterval(timerData.interval);
+            let durationSec = Math.floor((Date.now() - timerData.startTime) / 1000);
+            
+            saveParkingSpecificLog(recordTypeName, formatTimeSec(durationSec));
+
+            timerData.startTime = null;
+            timerData.interval = null;
+            
+            document.getElementById('parkingTimerOverlayContainer').style.display = 'none';
+            document.getElementById('mapOverlayTimer').style.display = 'none';
+            document.getElementById('parkingOverlayTimerVal').textContent = '00:00:00';
+            
+            // 버튼 원래 상태로 복원
+            if (recordTypeName === '주차기록') {
+              btn.innerHTML = '<i class="ti ti-map-pin"></i> 주차기록';
+              btn.style.background = '#198754';
+            } else {
+              btn.innerHTML = '<i class="ti ti-building"></i> 주차장기록';
+              btn.style.background = '#0d6efd';
+            }
+
+            showToast('⏹️ ' + recordTypeName + ' 측정 종료 및 저장 완료');
+          }
+        });
+      }
+    });
+  }
+
+  function triggerStopSegment() {
+    currentRecordingState.segmentActive = false;
+    currentRecordingState.segmentEndStr = nowShortTimeStr();
+    stopSegmentTimer();
+    syncUI();
+    saveSegmentLogToDatabase();
+    showToast('⏹️ 주행 기록이 종료되어 저장되었습니다.');
+  }
+
+  function saveParkingSpecificLog(recordTypeName, durationStr) {
+    var d = new Date();
+    var dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
+    var currentT = nowShortTimeStr();
+    var defaultTarget = document.getElementById('inputFirstTarget')?.value || currentAddressStr;
+
+    var distanceKm = 0;
+    if (currentRecordingState.startCoords) {
+      distanceKm = calculateDistance(
+        currentRecordingState.startCoords.lat, currentRecordingState.startCoords.lng,
+        currentLat, currentLng
+      );
+    }
+
+    var logData = {
+      carModel: selectedCarModel,
+      startKm: document.getElementById('inputStartKm')?.value || '',
+      endKm: '',
+      ssd: document.getElementById('inputSSD')?.value || '',
+      targetName: defaultTarget + ' [' + recordTypeName + ']',
+      type: 'parking',
+      subType: recordTypeName,
+      dateKey: dateKey,
+      startTime: currentT,
+      endTime: currentT,
+      duration: durationStr || '00:00:00',
+      distance: distanceKm.toFixed(2),
+      subEvents: [...currentRecordingState.subEvents],
+      timestamp: Date.now()
+    };
+
+    if (typeof database !== 'undefined') {
+      database.ref('logs').push(logData).catch(async err => {
+        document.getElementById('offlineBadge').style.display = 'inline-block';
+        await saveOfflineData(logData);
+      });
+    } else {
+      document.getElementById('offlineBadge').style.display = 'inline-block';
+      saveOfflineData(logData);
+    }
+  }
+
+  function saveSegmentLogToDatabase(customTargetName) {
+    var d = new Date();
+    var dateKey = d.getFullYear() + '-' + fmt(d.getMonth() + 1) + '-' + fmt(d.getDate());
+
+    var distanceKm = 0;
+    if (currentRecordingState.startCoords) {
+      distanceKm = calculateDistance(
+        currentRecordingState.startCoords.lat, currentRecordingState.startCoords.lng,
+        currentLat, currentLng
+      );
+    }
+
+    var defaultTarget = customTargetName || document.getElementById('inputFirstTarget')?.value || currentAddressStr;
+
+    var logData = {
+      carModel: selectedCarModel,
+      startKm: document.getElementById('inputStartKm')?.value || '',
+      endKm: '',
+      ssd: document.getElementById('inputSSD')?.value || '',
+      targetName: defaultTarget,
+      type: currentRecordingState.type,
+      dateKey: dateKey,
+      startTime: currentRecordingState.segmentStartStr || currentRecordingState.totalStartStr,
+      endTime: currentRecordingState.segmentEndStr || nowShortTimeStr(),
+      distance: distanceKm.toFixed(2),
+      subEvents: currentRecordingState.subEvents,
+      timestamp: Date.now()
+    };
+
+    if (typeof database !== 'undefined') {
+      database.ref('logs').push(logData).then(() => {
+        localStorage.removeItem('activeRecordingBackup');
+      }).catch(async err => {
+        document.getElementById('offlineBadge').style.display = 'inline-block';
+        await saveOfflineData(logData);
+      });
+    } else {
+      document.getElementById('offlineBadge').style.display = 'inline-block';
+      saveOfflineData(logData);
+    }
+  }
+
+  function stopTripAndSave(cat, customTargetName) {
+    stopTotalTimer();
+    stopSegmentTimer();
+
+    if (typeof database !== 'undefined') {
+      database.ref('liveStatus/' + selectedCarModel).remove();
+    }
+
+    currentRecordingState.active = false;
+    currentRecordingState.segmentActive = false;
+    localStorage.removeItem('activeRecordingBackup');
+    syncUI();
+    showToast('🏁 측정 작업이 최종 완료되었습니다.');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    var btnViaNext = document.getElementById('btnViaNext');
+    if (btnViaNext) {
+      btnViaNext.addEventListener('click', function() {
+        if (!currentRecordingState.active || currentRecordingState.type !== 'road') {
+          showToast('도로 주행 중일 때만 경유 기능을 사용할 수 있습니다.');
+          return;
+        }
+
+        var nextTargetInput = document.getElementById('inputNextTarget');
+        var nextTargetName = nextTargetInput ? nextTargetInput.value.trim() : '';
+        if (!nextTargetName) {
+          showToast('다음 목적지 이름을 입력해 주세요!');
+          if (nextTargetInput) nextTargetInput.focus();
+          return;
+        }
+
+        if (currentRecordingState.segmentActive) {
+          triggerStopSegment();
+        } else {
+          saveSegmentLogToDatabase(nextTargetName);
+        }
+
+        if (nextTargetInput) nextTargetInput.value = '';
+        document.getElementById('inputFirstTarget').value = nextTargetName;
+
+        currentRecordingState.segmentStartStr = nowShortTimeStr();
+        currentRecordingState.segmentActive = true;
+        startSegmentTimer();
+        syncUI();
+        showToast('📍 경유지 저장 및 새 구간 기록 자동 시작!');
+      });
+    }
+
+    setupSegmentControlListeners();
+  });
+
   function syncUI() {
-    var isRec = currentRecordingState.active;
+    var isTripActive = currentRecordingState.active;
+    var isSegmentActive = currentRecordingState.segmentActive;
     var recType = currentRecordingState.type;
 
     ['road', 'parking'].forEach(cat => {
@@ -690,17 +1091,27 @@
 
       var startBtn = panelBtn.querySelector('.startBtn');
       var stopBtn = panelBtn.querySelector('.stopBtn');
-      var thisIsRec = isRec && recType === cat;
+      var thisIsTrip = isTripActive && recType === cat;
 
-      startBtn.disabled = isRec;
-      startBtn.style.opacity = isRec ? '0.5' : '1';
-      stopBtn.disabled = !thisIsRec;
-      stopBtn.style.opacity = thisIsRec ? '1' : '0.5';
-      inputsBox.style.display = thisIsRec ? 'flex' : 'none';
+      startBtn.disabled = isTripActive;
+      startBtn.style.opacity = isTripActive ? '0.5' : '1';
+      stopBtn.disabled = !thisIsTrip;
+      stopBtn.style.opacity = thisIsTrip ? '1' : '0.5';
+      inputsBox.style.display = thisIsTrip ? 'flex' : 'none';
+
+      if (thisIsTrip && cat === 'road') {
+        var btnStartSeg = inputsBox.querySelector('#btnStartSegment');
+        var btnStopSeg = inputsBox.querySelector('#btnStopSegment');
+        if (btnStartSeg && btnStopSeg) {
+          btnStartSeg.disabled = isSegmentActive;
+          btnStartSeg.style.opacity = isSegmentActive ? '0.5' : '1';
+          btnStopSeg.disabled = !isSegmentActive;
+          btnStopSeg.style.opacity = isSegmentActive ? '1' : '0.5';
+        }
+      }
     });
   }
 
-  // 🌟 [데이터 수집 리포트] 이메일 양식 적용 함수
   window.sendReportByEmail = function(dateKey, carModel) {
     var savedEmail = localStorage.getItem('savedTargetEmail');
     if (!savedEmail) {
@@ -716,10 +1127,11 @@
     filteredLogs.forEach((item) => {
       var scenario = item.type === 'parking' ? '주차' : '주행';
       var environment = item.type === 'parking' ? '지하주차장' : '일반도로';
-      var startTime = item.startTime || '16:48';
-      var endTime = item.endTime || '16:48';
-      var targetName = item.targetName || '서울 강남구 논현동 279-128';
-      var ssdVal = item.ssd || '14';
+      var startTime = item.startTime || '';
+      var endTime = item.endTime || '';
+      var targetName = item.targetName || '';
+      var ssdVal = item.ssd || '';
+      var durationVal = item.duration || '0:00';
 
       rowsHtml += `
         <tr>
@@ -730,8 +1142,8 @@
           <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${environment}</td>
           <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${startTime}</td>
           <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${endTime}</td>
-          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">0:00</td>
-          <td style="border:1px solid #ddd; padding:8px; background:#fff;">특수차량 / 어린이 / PM</td>
+          <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fff;">${durationVal}</td>
+          <td style="border:1px solid #ddd; padding:8px; background:#fff;">특수차량 / 어린이 / 보행자</td>
           <td style="border:1px solid #ddd; padding:8px; background:#fff;"></td>
           <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fce8e6; color:#c53929;">x</td>
           <td style="border:1px solid #ddd; padding:8px; text-align:center; background:#fce8e6; color:#c53929;">x</td>
@@ -766,12 +1178,7 @@
       </div>
     `;
 
-    var templateParams = {
-      to_email: savedEmail,
-      message_html: htmlContent
-    };
-
-    emailjs.send('service_0mu4e21', 'template_86vlpyu', templateParams)
+    emailjs.send('service_0mu4e21', 'template_86vlpyu', { to_email: savedEmail, message_html: htmlContent })
       .then(() => showToast('이메일 전송이 완료되었습니다!'))
       .catch((err) => showToast('전송 실패: ' + JSON.stringify(err)));
   };
@@ -807,13 +1214,9 @@
     if (!targetName) { showToast('목적지를 입력해 주세요.'); return; }
 
     if (typeof database !== 'undefined') {
-      database.ref('logs/' + logId).update({
-        targetName: targetName,
-        startTime: startTime,
-        endTime: endTime
-      }).then(() => {
-        showToast('개별 기록이 수정되었습니다.');
-      }).catch(err => showToast('수정 실패: ' + err.message));
+      database.ref('logs/' + logId).update({ targetName, startTime, endTime })
+        .then(() => showToast('개별 기록이 수정되었습니다.'))
+        .catch(err => showToast('수정 실패: ' + err.message));
     }
   };
 
@@ -821,11 +1224,9 @@
     var detailEl = document.getElementById('detail_' + logId);
     var iconEl = document.getElementById('icon_' + logId);
     if (detailEl.style.display === 'none') {
-      detailEl.style.display = 'block';
-      iconEl.className = 'ti ti-chevron-down';
+      detailEl.style.display = 'block'; iconEl.className = 'ti ti-chevron-down';
     } else {
-      detailEl.style.display = 'none';
-      iconEl.className = 'ti ti-chevron-right';
+      detailEl.style.display = 'none'; iconEl.className = 'ti ti-chevron-right';
     }
   };
 
@@ -838,34 +1239,27 @@
     var btnLX2 = document.getElementById('btnCarLX2');
     var btnGN7 = document.getElementById('btnCarGN7');
 
-    btnLX2.addEventListener('click', () => {
-      selectedCarModel = 'LX2';
-      btnLX2.style.border = '2px solid #0d6efd';
-      btnLX2.style.background = '#e7f1ff';
-      btnLX2.style.color = '#0d6efd';
-      btnGN7.style.border = '1px solid var(--border-strong)';
-      btnGN7.style.background = 'var(--surface-1)';
-      btnGN7.style.color = 'var(--text-secondary)';
-    });
+    function selectCar(model) {
+      selectedCarModel = model;
+      if (model === 'LX2') {
+        btnLX2.style.border = '2px solid #0d6efd'; btnLX2.style.background = '#e7f1ff'; btnLX2.style.color = '#0d6efd';
+        btnGN7.style.border = '1px solid var(--border-strong)'; btnGN7.style.background = 'var(--surface-1)'; btnGN7.style.color = 'var(--text-secondary)';
+      } else {
+        btnGN7.style.border = '2px solid #d97706'; btnGN7.style.background = '#fff7ed'; btnGN7.style.color = '#d97706';
+        btnLX2.style.border = '1px solid var(--border-strong)'; btnLX2.style.background = 'var(--surface-1)'; btnLX2.style.color = 'var(--text-secondary)';
+      }
+      checkTeamLiveStatusDisplay();
+    }
 
-    btnGN7.addEventListener('click', () => {
-      selectedCarModel = 'GN7';
-      btnGN7.style.border = '2px solid #d97706';
-      btnGN7.style.background = '#fff7ed';
-      btnGN7.style.color = '#d97706';
-      btnLX2.style.border = '1px solid var(--border-strong)';
-      btnLX2.style.background = 'var(--surface-1)';
-      btnLX2.style.color = 'var(--text-secondary)';
-    });
-    btnGN7.click();
+    btnLX2.addEventListener('click', () => selectCar('LX2'));
+    btnGN7.addEventListener('click', () => selectCar('GN7'));
+    selectCar('GN7');
 
     document.getElementById('btnCloseSheetMain').addEventListener('click', () => {
       document.getElementById('sheet').style.display = 'none';
     });
     document.querySelectorAll('.closeSheetAll').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.getElementById('sheet').style.display = 'none';
-      });
+      btn.addEventListener('click', () => { document.getElementById('sheet').style.display = 'none'; });
     });
 
     document.getElementById('btnSaveEmail').addEventListener('click', () => {
@@ -901,6 +1295,7 @@
             }
           });
           database.ref('logs').update(updates).then(() => {
+            database.ref('liveStatus/' + selectedCarModel).remove();
             showToast('오늘 측정이 종료되었습니다.');
             document.getElementById('initialSetupBox').style.display = 'flex';
             document.getElementById('inputStartKm').value = '';
@@ -917,12 +1312,40 @@
         map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 3 });
         currentMarker = new kakao.maps.Marker({ map: map });
 
+        currentPolyline = new kakao.maps.Polyline({
+          map: map,
+          path: [],
+          strokeWeight: 5,
+          strokeColor: '#0d6efd',
+          strokeOpacity: 0.8,
+          strokeStyle: 'solid'
+        });
+
         if ("geolocation" in navigator) {
           navigator.geolocation.watchPosition(function(pos) {
-            currentLat = pos.coords.latitude;
-            currentLng = pos.coords.longitude;
+            const rawCoord = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              timestamp: pos.timestamp || Date.now()
+            };
+
+            const filteredCoord = filterGPSPoint(rawCoord);
+            if (!filteredCoord) return;
+
+            currentLat = filteredCoord.lat;
+            currentLng = filteredCoord.lng;
             var latLng = new kakao.maps.LatLng(currentLat, currentLng);
             if (currentMarker) currentMarker.setPosition(latLng);
+
+            if (currentRecordingState.active) {
+              currentRecordingState.pathCoords.push([currentLat, currentLng]);
+              var pathPoints = currentRecordingState.pathCoords.map(c => new kakao.maps.LatLng(c[0], c[1]));
+              currentPolyline.setPath(pathPoints);
+              
+              var countEl = document.getElementById('pathPointCount');
+              if (countEl) countEl.textContent = '(' + currentRecordingState.pathCoords.length + 'pts)';
+              saveOfflineBackup();
+            }
 
             geocoder.coord2Address(currentLng, currentLat, function(result, status) {
               if (status === kakao.maps.services.Status.OK) {
@@ -930,7 +1353,7 @@
                 document.getElementById('currentLocText').innerHTML = '<i class="ti ti-map-pin"></i> 현재 위치: <strong>' + currentAddressStr + '</strong>';
               }
             });
-          }, null, { enableHighAccuracy: true });
+          }, null, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
         }
       });
     }
@@ -943,6 +1366,12 @@
           Object.keys(data).forEach(key => window.globalLogs.push(Object.assign({ id: key }, data[key])));
         }
         renderHistory();
+        document.getElementById('offlineBadge').style.display = 'none';
+      });
+
+      database.ref('liveStatus').on('value', snapshot => {
+        liveTeamStatuses = snapshot.val() || { GN7: null, LX2: null };
+        checkTeamLiveStatusDisplay();
       });
     }
 
@@ -950,6 +1379,7 @@
     buildPanel('parking');
     initTagChips('panelRoadInputs');
     initTagChips('panelParkingInputs');
+    checkOfflineBackup();
 
     document.getElementById('btnMyLocation').addEventListener('click', () => {
       if (map) map.panTo(new kakao.maps.LatLng(currentLat, currentLng));
@@ -960,6 +1390,33 @@
       if (sheet.style.display === 'flex') showView('main');
     });
   };
+
+  function checkTeamLiveStatusDisplay() {
+    var status = liveTeamStatuses[selectedCarModel];
+    var tagLX = document.getElementById('statusLX2Tag');
+    var tagGN = document.getElementById('statusGN7Tag');
+    var banner = document.getElementById('teamAlertBanner');
+    var alertText = document.getElementById('teamAlertText');
+
+    if (liveTeamStatuses.LX2 && liveTeamStatuses.LX2.active) {
+      tagLX.textContent = '(🔴 측정중)'; tagLX.style.color = '#dc3545';
+    } else {
+      tagLX.textContent = '(대기중)'; tagLX.style.color = '#868e96';
+    }
+
+    if (liveTeamStatuses.GN7 && liveTeamStatuses.GN7.active) {
+      tagGN.textContent = '(🔴 측정중)'; tagGN.style.color = '#dc3545';
+    } else {
+      tagGN.textContent = '(대기중)'; tagGN.style.color = '#d97706';
+    }
+
+    if (status && status.active) {
+      banner.style.display = 'block';
+      alertText.textContent = selectedCarModel + ' 팀이 현재 ' + (status.type === 'road' ? '도로 주행' : '주차장 탐색') + ' 중입니다 (' + status.startTime + ' 시작)';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
 
   function renderHistory() {
     var listArea = document.getElementById('historyCards');
@@ -1007,8 +1464,8 @@
         var card = document.createElement('div');
         card.className = 'destination-card';
         var isRoad = item.type === 'road';
-        var subCount = item.subEvents ? item.subEvents.length : 0;
         var itemDist = item.distance ? item.distance + ' km' : '0.00 km';
+        var durationInfo = item.duration ? '소요 시간: <strong>' + item.duration + '</strong>' : '';
 
         var subEventsHtml = '';
         if (item.subEvents && item.subEvents.length > 0) {
@@ -1045,7 +1502,7 @@
               <button type="button" onclick="updateSingleLog('${item.id}')" style="height:26px; background:#e7f1ff; color:#0d6efd; border:1px solid #b6d4fe; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer; margin-top:2px;">이 개별 기록 수정 저장</button>
             </div>
 
-            <div style="font-size:12px; color:var(--text-muted);">SSD ${item.ssd || '미입력'} &nbsp;|&nbsp; 이동 거리: <strong>${itemDist}</strong></div>
+            <div style="font-size:12px; color:var(--text-muted);">SSD ${item.ssd || '미입력'} &nbsp;|&nbsp; 이동 거리: <strong>${itemDist}</strong> &nbsp;|&nbsp; ${durationInfo}</div>
             <div style="margin-top:8px; background:#f8f9fa; padding:8px; border-radius:6px;">
               <div style="font-size:11px; font-weight:bold; color:var(--text-primary); margin-bottom:4px;">📋 세부 로그 및 특이사항</div>
               ${subEventsHtml}
