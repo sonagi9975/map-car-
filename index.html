@@ -131,16 +131,6 @@
       border: 1px solid rgba(255, 255, 255, 0.2);
       pointer-events: none;
     }
-    
-    .map-overlay-timer .timer-title {
-      font-size: 14px;
-      color: #adb5bd;
-    }
-
-    .map-overlay-timer .timer-value {
-      font-size: 18px;
-      font-weight: bold;
-    }
 
     .fab-container {
       position: absolute;
@@ -305,7 +295,7 @@
     .icon-btn { background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 14px; display: inline-flex; align-items: center; }
     .btn-action { height: 40px; border-radius: var(--radius); border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
 
-    /* 리팩토링 추가 스타일 (인라인 CSS 최소화 용도) */
+    /* 리팩토링 클래스 */
     .panel-btn-start { flex: 1; height: 40px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: var(--bg-success); color: var(--text-success); font-size: 13px; font-weight: 600; cursor: pointer; }
     .panel-btn-stop { flex: 1; height: 40px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: var(--bg-danger); color: var(--text-danger); font-size: 13px; font-weight: 600; opacity: 0.5; cursor: pointer; }
     .history-box-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
@@ -326,7 +316,7 @@
   <div id="toastBanner">기록되었습니다.</div>
 
   <div class="app-header">
-    <span style="font-size: 16px; font-weight: 600; color: var(--text-primary);">주차 탐색 및 기록 관리</span>
+    <span style="font-size: 16px; font-weight: 600; color: var(--text-primary);">주차 탐색 및 기록 관리 [유지보수 적용]</span>
   </div>
 
   <div class="selected-location-bar">
@@ -649,8 +639,8 @@
   let segmentStartTime = null;
 
   let activeParkingTimers = {
-    '주차기록': { startTime: null, interval: null },
-    '주차장기록': { startTime: null, interval: null }
+    '주차기록': { startTime: null, startStr: null, interval: null },
+    '주차장기록': { startTime: null, startStr: null, interval: null }
   };
 
   let currentRecordingState = {
@@ -916,6 +906,7 @@
 
           if (!timerData.startTime) {
             timerData.startTime = Date.now();
+            timerData.startStr = nowShortTimeStr();
             
             document.getElementById('mapOverlayTimer').style.display = 'flex';
             document.getElementById('parkingTimerOverlayContainer').style.display = 'block';
@@ -934,9 +925,18 @@
             showToast('⏱️ ' + recordTypeName + ' 실시간 측정 시작!');
           } else {
             clearInterval(timerData.interval);
+            let endStr = nowShortTimeStr();
             let durationSec = Math.floor((Date.now() - timerData.startTime) / 1000);
+            let durationFormatted = formatTimeSec(durationSec);
             
-            saveParkingSpecificLog(recordTypeName, formatTimeSec(durationSec));
+            // 세부 로그에 [주차/주차장 기록] 추가
+            currentRecordingState.subEvents.push({
+              type: 'record',
+              title: recordTypeName,
+              timeStr: `${timerData.startStr} → ${endStr} (${durationFormatted})`
+            });
+
+            saveParkingSpecificLog(recordTypeName, durationFormatted);
 
             timerData.startTime = null;
             timerData.interval = null;
@@ -960,13 +960,27 @@
     });
   }
 
+  // 도로 기록 종료 시 세부 로그(subEvents)에 [주행 기록] 자동 기록
   function triggerStopSegment() {
     currentRecordingState.segmentActive = false;
     currentRecordingState.segmentEndStr = nowShortTimeStr();
     stopSegmentTimer();
+
+    var durationSec = segmentStartTime ? Math.floor((Date.now() - segmentStartTime) / 1000) : 0;
+    var durationFormatted = formatTimeSec(durationSec);
+    var startT = currentRecordingState.segmentStartStr || currentRecordingState.totalStartStr;
+    var endT = currentRecordingState.segmentEndStr;
+
+    // 세부 로그에 [주행 기록] 추가
+    currentRecordingState.subEvents.push({
+      type: 'record',
+      title: '주행 기록',
+      timeStr: `${startT} → ${endT} (${durationFormatted})`
+    });
+
     syncUI();
     saveSegmentLogToDatabase();
-    showToast('⏹️ 도로 기록이 종료되어 저장되었습니다.');
+    showToast('⏹️ 주행 기록이 종료되어 저장되었습니다.');
   }
 
   function saveParkingSpecificLog(recordTypeName, durationStr) {
@@ -1037,7 +1051,7 @@
       endTime: currentRecordingState.segmentEndStr || nowShortTimeStr(),
       duration: (segmentStartTime ? formatTimeSec(Math.floor((Date.now() - segmentStartTime)/1000)) : '00:00:00'),
       distance: distanceKm.toFixed(2),
-      subEvents: currentRecordingState.subEvents,
+      subEvents: [...currentRecordingState.subEvents],
       timestamp: Date.now()
     };
 
@@ -1471,7 +1485,6 @@
 
       var box = document.createElement('div');
       box.className = 'day-report-box';
-      
       box.innerHTML = `
         <div class="history-box-header">
           <span>🗺️ ${dateKey} · [${currentHistoryCarTab}]</span>
@@ -1502,7 +1515,8 @@
         var subEventsHtml = '';
         if (item.subEvents && item.subEvents.length > 0) {
           item.subEvents.forEach(ev => {
-            subEventsHtml += `<div class="history-subevent-item">🔹 [${ev.title}] 발생 시간: ${ev.timeStr}</div>`;
+            var prefixIcon = ev.type === 'record' ? '🔹' : '🏷️';
+            subEventsHtml += `<div class="history-subevent-item">${prefixIcon} [${ev.title}] ${ev.timeStr}</div>`;
           });
         } else {
           subEventsHtml = `<div class="history-subevent-empty">세부 로그가 없습니다.</div>`;
